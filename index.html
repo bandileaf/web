@@ -53,7 +53,12 @@
         radial-gradient(36vw 36vw at 100% 5%, color-mix(in srgb, var(--root) 16%, transparent), transparent 70%);
     }
     button { font: inherit; color: inherit; cursor: pointer; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+    .wrap { position: relative; max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+    .admin {
+      position: absolute; top: 18px; right: 16px; z-index: 5; padding: 7px 16px; border-radius: 999px;
+      font-size: .84rem; text-decoration: none; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+    }
+    .admin:hover { color: var(--text); border-color: var(--pre); }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow); }
     .p { --c: var(--pre); } .r { --c: var(--root); } .s { --c: var(--suf); } .w { --c: var(--text); }
 
@@ -148,6 +153,7 @@
 </head>
 <body>
   <div class="wrap">
+    <a class="admin" href="admin.html">관리자</a>
     <header class="engine">
 
       <div class="search">

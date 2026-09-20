@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Word Atlas · 관리자</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f6fb; --surface: #ffffff; --surface-2: #eef0f8;
+      --border: rgba(20, 24, 40, 0.10); --text: #161a2b; --muted: #5d6479;
+      --pre: #5b6cff; --root: #12a37f; --suf: #e8890c;
+      --shadow: 0 8px 30px rgba(40, 50, 100, 0.10);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1020; --surface: #171b33; --surface-2: #202546;
+        --border: rgba(255, 255, 255, 0.10); --text: #eceffa; --muted: #9aa2bd;
+        --pre: #8a95ff; --root: #3ddbb0; --suf: #ffb454;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; background: var(--bg); color: var(--text); line-height: 1.55;
+      font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a, button { font: inherit; color: inherit; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+    .p { --c: var(--pre); } .r { --c: var(--root); } .s { --c: var(--suf); }
+
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 26px 0 18px; }
+    .top h1 { font-size: 1.5rem; letter-spacing: -0.03em; }
+    .top h1 small { font-size: .85rem; font-weight: 400; color: var(--muted); margin-left: 8px; }
+    .btn { display: inline-block; padding: 8px 18px; border-radius: 999px; text-decoration: none; font-size: .9rem; background: var(--surface); border: 1px solid var(--border); }
+    .btn:hover { border-color: var(--pre); }
+
+    .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+    .bar input {
+      flex: 1; min-width: 220px; font: inherit; color: var(--text); padding: 11px 18px; border-radius: 999px; outline: none;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .bar input:focus { border-color: var(--pre); }
+    .stats { color: var(--muted); font-size: .88rem; }
+    .stats b { color: var(--text); }
+    .dbs::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+    .dbs.ok::before { background: var(--root); } .dbs.err::before { background: #e5484d; }
+
+    .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+    .col { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+    .col > h2 {
+      display: flex; align-items: baseline; justify-content: space-between; padding: 16px 20px; font-size: 1.05rem; color: var(--c);
+      background: color-mix(in srgb, var(--c) 12%, transparent); border-bottom: 1px solid var(--border);
+    }
+    .col > h2 span { font-size: .84rem; font-weight: 400; color: var(--muted); }
+    .list { padding: 8px; }
+    details { border-radius: 14px; }
+    details[open] { background: var(--surface-2); }
+    summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 14px; }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { background: var(--surface-2); }
+    summary .t { font-weight: 700; color: var(--c); min-width: 64px; }
+    summary .m { color: var(--muted); font-size: .88rem; flex: 1; }
+    summary .n { font-size: .78rem; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); font-weight: 600; }
+    .words { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 12px 12px; }
+    .words span { font-size: .84rem; padding: 3px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+    .words span em { font-style: normal; color: var(--muted); margin-left: 6px; }
+    .empty { color: var(--muted); font-size: .9rem; padding: 14px 16px; }
+    .note { margin-top: 22px; color: var(--muted); font-size: .84rem; text-align: center; }
+    @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>관리자 <small>접두사 · 어근 · 접미사</small></h1>
+      <a class="btn" href="index.html">← 지도로 돌아가기</a>
+    </div>
+
+    <div class="bar">
+      <input id="q" type="search" placeholder="조각, 뜻, 단어로 필터" autocomplete="off" aria-label="필터">
+      <div class="stats" id="stats"><span class="dbs">불러오는 중…</span></div>
+    </div>
+
+    <div class="cols" id="cols" aria-live="polite">
+      <section class="col p"><h2>접두사 Prefix <span id="c-p"></span></h2><div class="list" id="l-p"></div></section>
+      <section class="col r"><h2>어근 Root <span id="c-r"></span></h2><div class="list" id="l-r"></div></section>
+      <section class="col s"><h2>접미사 Suffix <span id="c-s"></span></h2><div class="list" id="l-s"></div></section>
+    </div>
+
+    <p class="note">읽기 전용 화면입니다. 단어와 조각은 Claude 를 통해 등록합니다.</p>
+  </div>
+
+  <script>
+    const SB_URL = 'https://gdqotnfcarjgfghourdm.supabase.co';
+    const SB_KEY = 'sb_publishable_GN3y0r8Lg9f-tbVQeln1qQ_9fXoNk8C';
+    const get = async (table, order) => {
+      const r = await fetch(`${SB_URL}/rest/v1/${table}?select=*&order=${order}`, { headers: { apikey: SB_KEY } });
+      if (!r.ok) throw new Error(table + ' ' + r.status);
+      return r.json();
+    };
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const KIND = { prefix: 'p', root: 'r', suffix: 's' };
+    const SIGN = { prefix: (t) => t + '-', root: (t) => t, suffix: (t) => '-' + t };
+    let rows = { p: [], r: [], s: [] };
+
+    function render(filter = '') {
+      const f = filter.trim().toLowerCase();
+      for (const k of ['p', 'r', 's']) {
+        const all = rows[k];
+        const list = all.filter((m) => !f || m.text.toLowerCase().includes(f) || m.meaning.includes(f) || m.words.some((w) => w.word.toLowerCase().includes(f) || w.ko.includes(f)));
+        document.getElementById('c-' + k).textContent = f ? `${list.length} / ${all.length}` : `${all.length}개`;
+        document.getElementById('l-' + k).innerHTML = list.length ? list.map((m) =>
+          `<details${f && list.length <= 6 ? ' open' : ''}><summary><span class="t">${esc(m.label)}</span><span class="m">${esc(m.meaning)}</span><span class="n">${m.words.length}</span></summary>` +
+          `<div class="words">${m.words.length ? m.words.map((w) => `<span>${esc(w.word)}<em>${esc(w.ko)}</em></span>`).join('') : '<span>연결된 단어 없음</span>'}</div></details>`
+        ).join('') : '<p class="empty">결과가 없습니다</p>';
+      }
+    }
+
+    (async () => {
+      const stats = document.getElementById('stats');
+      try {
+        const [ms, ws, wm] = await Promise.all([get('morphemes', 'id'), get('words', 'id'), get('word_morphemes', 'position')]);
+        const wById = new Map(ws.map((w) => [w.id, w]));
+        const byM = new Map();
+        wm.forEach((x) => { (byM.get(x.morpheme_id) || byM.set(x.morpheme_id, []).get(x.morpheme_id)).push(wById.get(x.word_id)); });
+        ms.forEach((m) => rows[KIND[m.type]].push({
+          text: m.text, label: SIGN[m.type](m.text), meaning: m.meaning_ko,
+          words: (byM.get(m.id) || []).filter(Boolean).map((w) => ({ word: w.word, ko: w.meaning_ko }))
+        }));
+        stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${ms.length}</b>개 · 단어 <b>${ws.length}</b>개`;
+        render();
+      } catch (e) {
+        console.warn(e);
+        stats.innerHTML = '<span class="dbs err">DB 에 연결하지 못했습니다</span>';
+        ['p', 'r', 's'].forEach((k) => { document.getElementById('l-' + k).innerHTML = '<p class="empty">데이터를 불러오지 못했습니다</p>'; });
+      }
+    })();
+    document.getElementById('q').addEventListener('input', (e) => render(e.target.value));
+  </script>
+</body>
+</html>
