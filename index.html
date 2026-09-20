@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="영단어를 접두사, 어근, 접미사로 나누어 네트워크로 보여주는 단어 구조 지도">
+  <meta name="description" content="영단어를 접두사, 어근, 접미사로 나누어 네트워크 그래프로 보여주는 단어 검색기">
   <title>Word Atlas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,10 +13,11 @@
       --bg: #f5f6fb;
       --surface: #ffffff;
       --surface-2: #eef0f8;
+      --graph: #fafbff;
       --border: rgba(20, 24, 40, 0.10);
       --text: #161a2b;
       --muted: #5d6479;
-      --edge: rgba(93, 100, 121, 0.28);
+      --edge: #8b93ad;
       --pre: #5b6cff;
       --root: #12a37f;
       --suf: #e8890c;
@@ -27,10 +28,11 @@
         --bg: #0d1020;
         --surface: #171b33;
         --surface-2: #202546;
+        --graph: #0a0c18;
         --border: rgba(255, 255, 255, 0.10);
         --text: #eceffa;
         --muted: #9aa2bd;
-        --edge: rgba(154, 162, 189, 0.30);
+        --edge: #6b7391;
         --pre: #8a95ff;
         --root: #3ddbb0;
         --suf: #ffb454;
@@ -41,303 +43,453 @@
     body {
       min-height: 100vh;
       font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
+      background: var(--bg); color: var(--text); line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
     body::before {
       content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
       background:
-        radial-gradient(40vw 40vw at 8% -5%, color-mix(in srgb, var(--pre) 22%, transparent), transparent 70%),
-        radial-gradient(36vw 36vw at 100% 10%, color-mix(in srgb, var(--root) 18%, transparent), transparent 70%),
-        radial-gradient(34vw 34vw at 60% 110%, color-mix(in srgb, var(--suf) 16%, transparent), transparent 70%);
+        radial-gradient(40vw 40vw at 8% -5%, color-mix(in srgb, var(--pre) 20%, transparent), transparent 70%),
+        radial-gradient(36vw 36vw at 100% 5%, color-mix(in srgb, var(--root) 16%, transparent), transparent 70%);
     }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px 64px; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow); }
+    .p { --c: var(--pre); } .r { --c: var(--root); } .s { --c: var(--suf); } .w { --c: var(--text); }
 
-    header { padding: 44px 0 22px; text-align: center; }
-    .brand { font-weight: 700; letter-spacing: -0.02em; color: var(--muted); font-size: 0.92rem; }
-    h1 {
-      margin: 10px 0 12px;
-      font-size: clamp(2rem, 6vw, 3.4rem);
-      letter-spacing: -0.04em; line-height: 1.12; font-weight: 700;
+    /* ── 검색 엔진 ── */
+    .engine { padding: 34px 0 22px; text-align: center; }
+    .brand { font-size: clamp(1.7rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: -0.04em; }
+    .brand .p { color: var(--pre); } .brand .r { color: var(--root); } .brand .s { color: var(--suf); }
+    .tagline { color: var(--muted); font-weight: 300; margin: 4px 0 20px; }
+    .search { position: relative; max-width: 640px; margin: 0 auto; text-align: left; }
+    .search svg { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--muted); pointer-events: none; }
+    .search input {
+      width: 100%; font: inherit; font-size: 1.1rem; color: var(--text);
+      padding: 16px 22px 16px 52px; border-radius: 999px; outline: none;
+      background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+      transition: border-color .2s, box-shadow .2s;
     }
-    h1 .p { color: var(--pre); }
-    h1 .r { color: var(--root); }
-    h1 .s { color: var(--suf); }
-    header p { color: var(--muted); font-weight: 300; max-width: 560px; margin: 0 auto; }
-
-    .legend { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-    .tag {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 5px 13px; border-radius: 999px; font-size: 0.84rem;
-      background: var(--surface); border: 1px solid var(--border);
+    .search input:focus { border-color: var(--pre); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pre) 22%, transparent), var(--shadow); }
+    .suggest {
+      position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 8px); list-style: none;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow);
+      padding: 6px; display: none; max-height: 320px; overflow: auto;
     }
-    .tag i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
-    .t-p { --c: var(--pre); } .t-r { --c: var(--root); } .t-s { --c: var(--suf); }
+    .suggest.open { display: block; }
+    .suggest li { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: 14px; cursor: pointer; }
+    .suggest li b { color: var(--c); }
+    .suggest li .dec { color: var(--muted); font-size: .85rem; }
+    .suggest li em { margin-left: auto; font-style: normal; color: var(--muted); font-size: .86rem; }
+    .suggest li.act, .suggest li:hover { background: var(--surface-2); }
+    .suggest .none { color: var(--muted); cursor: default; }
+    .examples { margin-top: 12px; color: var(--muted); font-size: .86rem; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
+    .ex { padding: 3px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: .84rem; }
+    .ex:hover { border-color: var(--pre); }
 
-    /* 단어 선택 바 */
-    .words { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 26px 0 18px; }
-    .chip {
-      font: inherit; font-size: 0.92rem; font-weight: 500; cursor: pointer;
-      padding: 7px 15px; border-radius: 999px; color: var(--text);
-      background: var(--surface); border: 1px solid var(--border);
-      transition: transform .15s, background .15s, border-color .15s, color .15s;
-    }
-    .chip:hover { transform: translateY(-2px); border-color: var(--root); }
-    .chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-    .chip.faded { opacity: .55; }
-
-    /* 카드 */
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 24px; box-shadow: var(--shadow);
-    }
-
-    /* 상세 패널 */
-    .detail { padding: 26px 24px; margin-bottom: 18px; text-align: center; }
-    .eq { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; font-size: clamp(1.4rem, 5vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; }
+    /* 검색 결과 */
+    .strip { max-width: 640px; margin: 18px auto 0; padding: 18px 20px; display: none; }
+    .strip.show { display: block; animation: rise .35s ease; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .eq { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
     .eq .plus { color: var(--muted); font-weight: 300; }
-    .part {
-      padding: 4px 16px 6px; border-radius: 14px;
-      color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
-      border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
+    .chip {
+      padding: 2px 16px 4px; border-radius: 14px; color: var(--c); font-weight: 700; font-size: inherit;
+      background: color-mix(in srgb, var(--c) 14%, transparent);
+      border: 1.5px solid color-mix(in srgb, var(--c) 40%, transparent);
+      transition: transform .15s, background .15s;
     }
-    .part.p { --c: var(--pre); } .part.r { --c: var(--root); } .part.s { --c: var(--suf); }
-    .result { margin-top: 12px; font-size: 1.05rem; }
-    .result b { font-weight: 700; }
-    .result span { color: var(--muted); }
-    .meanings { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
-    .meaning { font-size: 0.86rem; padding: 4px 12px; border-radius: 10px; background: var(--surface-2); }
-    .meaning b { color: var(--c); margin-right: 6px; }
-    .related { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-    .hint { color: var(--muted); font-size: 0.84rem; margin-top: 14px; }
+    .chip:hover { transform: translateY(-2px); }
+    .chip.on { background: color-mix(in srgb, var(--c) 32%, transparent); border-color: var(--c); }
+    .res { margin-top: 8px; font-size: 1.05rem; }
+    .res span { color: var(--muted); }
+    .res .hint { display: block; margin-top: 4px; font-size: .82rem; }
 
-    /* 네트워크 */
-    .net { padding: 14px 8px 8px; }
-    .scroll { overflow-x: auto; }
-    svg { display: block; width: 100%; min-width: 680px; height: auto; }
-    .colhead { font-size: 14px; font-weight: 600; fill: var(--muted); text-anchor: middle; letter-spacing: .02em; }
-    .edge { fill: none; stroke: var(--edge); stroke-width: 1.6; transition: stroke .2s, stroke-width .2s, opacity .2s; }
-    .edge.on { stroke: var(--text); stroke-width: 3; opacity: 1; }
-    .edge.dim { opacity: .10; }
-    .hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
-    .node { cursor: pointer; outline: none; transition: opacity .2s; }
-    .node rect {
-      fill: color-mix(in srgb, var(--c) 13%, var(--surface));
-      stroke: color-mix(in srgb, var(--c) 55%, transparent); stroke-width: 1.5;
-      transition: fill .2s, stroke-width .2s;
+    /* ── 그래프 + 패널 ── */
+    .stage { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 22px; }
+    .graph { position: relative; height: clamp(440px, 70vh, 740px); overflow: hidden; background: var(--graph); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+    canvas.hot { cursor: pointer; }
+    .legend { position: absolute; left: 14px; bottom: 12px; display: flex; gap: 12px; font-size: .78rem; color: var(--muted); flex-wrap: wrap; pointer-events: none; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+    .tools { position: absolute; right: 12px; top: 12px; display: flex; gap: 8px; align-items: center; }
+    .tools span { font-size: .76rem; color: var(--muted); }
+    .tbtn { padding: 6px 14px; border-radius: 999px; font-size: .82rem; background: var(--surface); border: 1px solid var(--border); }
+    .tbtn:hover { border-color: var(--pre); }
+
+    .panel { padding: 20px; height: clamp(440px, 70vh, 740px); overflow: auto; }
+    .panel h3 { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .panel h3 .chip { font-size: 1.15rem; }
+    .sub { color: var(--muted); font-size: .88rem; margin-bottom: 14px; }
+    .group { margin-top: 18px; }
+    .group > .gh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .84rem; color: var(--muted); }
+    .gh .chip { font-size: .9rem; padding: 0 12px 2px; }
+    .li {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left;
+      padding: 10px 14px; margin-bottom: 6px; border-radius: 14px;
+      background: var(--surface-2); border: 1px solid transparent;
+      transition: transform .18s, border-color .18s;
+      animation: rise .35s ease backwards;
     }
-    .node.p { --c: var(--pre); } .node.r { --c: var(--root); } .node.s { --c: var(--suf); }
-    .node .lab { font-size: 17px; font-weight: 700; fill: var(--c); text-anchor: start; }
-    .node .ko { font-size: 12.5px; fill: var(--muted); text-anchor: end; }
-    .node:hover rect, .node:focus-visible rect { stroke-width: 2.6; }
-    .node.on rect { fill: color-mix(in srgb, var(--c) 30%, var(--surface)); stroke: var(--c); stroke-width: 2.6; }
-    .node.dim { opacity: .28; }
+    .li:hover { transform: translateX(4px); border-color: var(--pre); }
+    .li b { font-size: 1.02rem; }
+    .li .dec { font-size: .82rem; color: var(--muted); }
+    .li .dec i { font-style: normal; color: var(--c); font-weight: 600; }
+    .li em { font-style: normal; font-size: .86rem; }
+    .empty { color: var(--muted); font-size: .92rem; }
+    footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 26px 0 0; }
 
-    footer { text-align: center; color: var(--muted); font-size: 0.84rem; padding: 34px 0 0; }
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    @media (max-width: 820px) {
+      .stage { grid-template-columns: 1fr; }
+      .panel { height: auto; max-height: none; }
+      .tools span { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div class="brand">WORD ATLAS</div>
-      <h1><span class="p">pre</span> + <span class="r">mate</span> + <span class="s">able</span><br>단어를 쪼개면 보입니다</h1>
-      <p>중·고등 필수 단어 20개를 접두사, 어근, 접미사로 나누고 하나의 지도로 연결했어요. 단어나 조각을 눌러 보세요.</p>
-      <div class="legend">
-        <span class="tag t-p"><i></i>접두사 Prefix</span>
-        <span class="tag t-r"><i></i>어근 Root</span>
-        <span class="tag t-s"><i></i>접미사 Suffix</span>
+    <header class="engine">
+      <div class="brand"><span class="p">pre</span> + <span class="r">mate</span> + <span class="s">able</span></div>
+      <p class="tagline">단어를 검색하면 접두사, 어근, 접미사로 나뉘어 지도에 연결됩니다.</p>
+
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="단어 또는 뜻을 검색하세요  (예: predict, 예측)" autocomplete="off" spellcheck="false" aria-label="단어 검색" role="combobox" aria-expanded="false" aria-controls="sug">
+        <ul class="suggest" id="sug" role="listbox"></ul>
       </div>
+      <div class="examples">예시
+        <button class="ex" data-q="predict">predict</button>
+        <button class="ex" data-q="unbreakable">unbreakable</button>
+        <button class="ex" data-q="transport">transport</button>
+        <button class="ex" data-q="construction">construction</button>
+      </div>
+
+      <section class="card strip" id="strip" aria-live="polite"></section>
     </header>
 
-    <div class="words" id="words" role="group" aria-label="단어 선택"></div>
-
-    <section class="card detail" id="detail" aria-live="polite"></section>
-
-    <section class="card net">
-      <div class="scroll">
-        <svg id="svg" viewBox="0 0 900 640" role="img" aria-label="접두사, 어근, 접미사 연결 네트워크"></svg>
+    <div class="stage">
+      <div class="card graph">
+        <canvas id="cv" aria-label="단어 조각 네트워크 그래프"></canvas>
+        <div class="tools"><span>드래그 이동 · 휠 확대</span><button class="tbtn" id="reset" type="button">전체 보기</button></div>
+        <div class="legend">
+          <span class="p"><i></i>접두사</span><span class="r"><i></i>어근</span><span class="s"><i></i>접미사</span><span class="w"><i></i>단어</span>
+        </div>
       </div>
-    </section>
+      <aside class="card panel" id="panel" aria-live="polite"></aside>
+    </div>
 
-    <footer>bandileaf · GitHub Pages</footer>
+    <footer>bandileaf · Word Atlas</footer>
   </div>
 
   <script>
     // ── 데이터 ─────────────────────────────────────────────
-    const PRE = [
-      ['un', '부정'], ['re', '다시'], ['pre', '이전'], ['im', '안으로'], ['ex', '밖으로'],
-      ['trans', '가로질러'], ['dis', '반대'], ['inter', '사이'], ['con', '함께'], ['de', '아래로 · 반대']
-    ];
-    const ROOT = [
-      ['happy', '행복한'], ['break', '깨다'], ['use', '사용하다'], ['view', '보다'], ['dict', '말하다'],
-      ['port', '나르다'], ['agree', '동의하다'], ['act', '행하다'], ['form', '모양'], ['struct', '짓다']
-    ];
-    const SUF = [
-      ['able', '~할 수 있는'], ['ful', '~로 가득한'], ['less', '~이 없는'], ['ion', '행위 · 명사'],
-      ['ment', '결과 · 명사'], ['ive', '~하는 성향'], ['or', '~하는 사람']
-    ];
+    const PRE = [['un','부정'],['re','다시'],['pre','이전'],['im','안으로'],['ex','밖으로'],['trans','가로질러'],['dis','반대'],['inter','사이'],['con','함께'],['de','아래로 · 반대']];
+    const ROOT = [['happy','행복한'],['break','깨다'],['use','사용하다'],['view','보다'],['dict','말하다'],['port','나르다'],['agree','동의하다'],['act','행하다'],['form','모양'],['struct','짓다']];
+    const SUF = [['able','~할 수 있는'],['ful','~로 가득한'],['less','~이 없는'],['ion','행위 · 명사'],['ment','결과 · 명사'],['ive','~하는 성향'],['or','~하는 사람']];
     const WORDS = [
-      { w: 'unhappy',       p: 'un',    r: 'happy',  s: null,   ko: '불행한' },
-      { w: 'unbreakable',   p: 'un',    r: 'break',  s: 'able', ko: '깨지지 않는' },
-      { w: 'reusable',      p: 're',    r: 'use',    s: 'able', ko: '재사용할 수 있는' },
-      { w: 'review',        p: 're',    r: 'view',   s: null,   ko: '복습하다, 검토' },
-      { w: 'preview',       p: 'pre',   r: 'view',   s: null,   ko: '미리 보기' },
-      { w: 'prediction',    p: 'pre',   r: 'dict',   s: 'ion',  ko: '예측' },
-      { w: 'import',        p: 'im',    r: 'port',   s: null,   ko: '수입하다' },
-      { w: 'export',        p: 'ex',    r: 'port',   s: null,   ko: '수출하다' },
-      { w: 'transport',     p: 'trans', r: 'port',   s: null,   ko: '수송하다' },
-      { w: 'portable',      p: null,    r: 'port',   s: 'able', ko: '휴대할 수 있는' },
-      { w: 'disagreement',  p: 'dis',   r: 'agree',  s: 'ment', ko: '의견 차이' },
-      { w: 'useful',        p: null,    r: 'use',    s: 'ful',  ko: '유용한' },
-      { w: 'useless',       p: null,    r: 'use',    s: 'less', ko: '쓸모없는' },
-      { w: 'action',        p: null,    r: 'act',    s: 'ion',  ko: '행동' },
-      { w: 'active',        p: null,    r: 'act',    s: 'ive',  ko: '활동적인' },
-      { w: 'actor',         p: null,    r: 'act',    s: 'or',   ko: '배우' },
-      { w: 'interact',      p: 'inter', r: 'act',    s: null,   ko: '상호작용하다' },
-      { w: 'transform',     p: 'trans', r: 'form',   s: null,   ko: '변형시키다' },
-      { w: 'construction',  p: 'con',   r: 'struct', s: 'ion',  ko: '건설' },
-      { w: 'destruction',   p: 'de',    r: 'struct', s: 'ion',  ko: '파괴' }
+      { w: 'unhappy', p: 'un', r: 'happy', s: null, ko: '불행한' },
+      { w: 'unbreakable', p: 'un', r: 'break', s: 'able', ko: '깨지지 않는' },
+      { w: 'reusable', p: 're', r: 'use', s: 'able', ko: '재사용할 수 있는' },
+      { w: 'review', p: 're', r: 'view', s: null, ko: '복습하다, 검토' },
+      { w: 'preview', p: 'pre', r: 'view', s: null, ko: '미리 보기' },
+      { w: 'predict', p: 'pre', r: 'dict', s: null, ko: '예측하다' },
+      { w: 'prediction', p: 'pre', r: 'dict', s: 'ion', ko: '예측' },
+      { w: 'import', p: 'im', r: 'port', s: null, ko: '수입하다' },
+      { w: 'export', p: 'ex', r: 'port', s: null, ko: '수출하다' },
+      { w: 'transport', p: 'trans', r: 'port', s: null, ko: '수송하다' },
+      { w: 'portable', p: null, r: 'port', s: 'able', ko: '휴대할 수 있는' },
+      { w: 'disagreement', p: 'dis', r: 'agree', s: 'ment', ko: '의견 차이' },
+      { w: 'useful', p: null, r: 'use', s: 'ful', ko: '유용한' },
+      { w: 'useless', p: null, r: 'use', s: 'less', ko: '쓸모없는' },
+      { w: 'action', p: null, r: 'act', s: 'ion', ko: '행동' },
+      { w: 'active', p: null, r: 'act', s: 'ive', ko: '활동적인' },
+      { w: 'actor', p: null, r: 'act', s: 'or', ko: '배우' },
+      { w: 'interact', p: 'inter', r: 'act', s: null, ko: '상호작용하다' },
+      { w: 'transform', p: 'trans', r: 'form', s: null, ko: '변형시키다' },
+      { w: 'construction', p: 'con', r: 'struct', s: 'ion', ko: '건설' },
+      { w: 'destruction', p: 'de', r: 'struct', s: 'ion', ko: '파괴' }
     ];
-
-    // ── 레이아웃 ───────────────────────────────────────────
-    const NS = 'http://www.w3.org/2000/svg';
-    const COLX = { p: 150, r: 450, s: 750 };
-    const NW = 170, NH = 40, TOP = 90, GAP = 54;
     const KIND = { p: PRE, r: ROOT, s: SUF };
     const SIGN = { p: (t) => t + '-', r: (t) => t, s: (t) => '-' + t };
-    const HEAD = { p: '접두사  Prefix', r: '어근  Root', s: '접미사  Suffix' };
-    const pos = {};
-    const nodeEls = {};
-    const edgeEls = [];
-    const svg = document.getElementById('svg');
+    const KIND_KO = { p: '접두사', r: '어근', s: '접미사' };
 
-    const el = (name, attrs = {}, parent) => {
-      const e = document.createElementNS(NS, name);
-      for (const k in attrs) e.setAttribute(k, attrs[k]);
-      if (parent) parent.appendChild(e);
-      return e;
+    // ── 그래프 데이터 ──────────────────────────────────────
+    const nodes = [], byId = {}, links = [], adj = {};
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+    const addNode = (id, type, label, ko, t, x) => {
+      const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
+      nodes.push(n); byId[id] = n; adj[id] = new Set();
     };
-
-    const edgesLayer = el('g', {}, svg);
-    const nodesLayer = el('g', {}, svg);
-
-    for (const kind of ['p', 'r', 's']) {
-      const h = el('text', { class: 'colhead', x: COLX[kind], y: 42 }, svg);
-      h.textContent = HEAD[kind];
-      KIND[kind].forEach(([t, ko], i) => {
-        const id = kind + ':' + t;
-        const x = COLX[kind], y = TOP + i * GAP;
-        pos[id] = { x, y };
-        const g = el('g', { class: 'node ' + kind, tabindex: 0, role: 'button', 'aria-label': SIGN[kind](t) + ' ' + ko }, nodesLayer);
-        el('rect', { x: x - NW / 2, y: y - NH / 2, width: NW, height: NH, rx: 20 }, g);
-        el('text', { class: 'lab', x: x - NW / 2 + 16, y: y + 6 }, g).textContent = SIGN[kind](t);
-        el('text', { class: 'ko', x: x + NW / 2 - 14, y: y + 4.5 }, g).textContent = ko;
-        g.addEventListener('click', () => choose({ part: id }));
-        g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose({ part: id }); } });
-        nodeEls[id] = g;
-      });
+    for (const k of ['p', 'r', 's']) {
+      KIND[k].forEach(([t, ko]) => addNode(k + ':' + t, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80));
     }
-
-    const curve = (a, b) => {
-      const x1 = a.x + NW / 2, x2 = b.x - NW / 2, mx = (x1 + x2) / 2;
-      return `M${x1},${a.y} C${mx},${a.y} ${mx},${b.y} ${x2},${b.y}`;
-    };
-
     WORDS.forEach((wd) => {
       wd.ids = [wd.p && 'p:' + wd.p, 'r:' + wd.r, wd.s && 's:' + wd.s].filter(Boolean);
-      wd.paths = [];
-      for (let i = 0; i < wd.ids.length - 1; i++) {
-        const d = curve(pos[wd.ids[i]], pos[wd.ids[i + 1]]);
-        const path = el('path', { class: 'edge', d }, edgesLayer);
-        const hit = el('path', { class: 'hit', d }, edgesLayer);
-        hit.addEventListener('click', () => choose({ word: wd.w }));
-        hit.addEventListener('mouseenter', () => path.classList.add('on'));
-        hit.addEventListener('mouseleave', () => render());
-        wd.paths.push(path);
+      addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300);
+      wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
+    });
+    nodes.forEach((n) => { n.r = n.type === 'w' ? 5 : 7 + adj[n.id].size * 1.7; });
+    const wordOf = (id) => WORDS.find((w) => 'w:' + w.w === id);
+    const partInfo = (id) => { const [k, t] = id.split(':'); return { k, t, ko: byId[id].ko }; };
+
+    // ── 물리 시뮬레이션 (force-directed) ───────────────────
+    function tick(a) {
+      for (let i = 0; i < nodes.length; i++) {
+        const A = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const B = nodes[j];
+          let dx = A.x - B.x, dy = A.y - B.y, d2 = dx * dx + dy * dy;
+          if (d2 < 400) d2 = 400;
+          const d = Math.sqrt(d2), f = (6500 * a) / d2;
+          dx = (dx / d) * f; dy = (dy / d) * f;
+          A.vx += dx; A.vy += dy; B.vx -= dx; B.vy -= dy;
+        }
       }
-    });
+      for (const [A, B] of links) {
+        const dx = B.x - A.x, dy = B.y - A.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const f = (d - 82) * 0.035 * Math.max(a, 0.15), fx = (dx / d) * f, fy = (dy / d) * f;
+        A.vx += fx; A.vy += fy; B.vx -= fx; B.vy -= fy;
+      }
+      for (const n of nodes) {
+        n.vx -= n.x * 0.012 * a; n.vy -= n.y * 0.012 * a;
+        if (n.fixed) { n.vx = n.vy = 0; continue; }
+        n.vx *= 0.82; n.vy *= 0.82; n.x += n.vx; n.y += n.vy;
+      }
+    }
+    for (let i = 0; i < 520; i++) tick(Math.max(0.04, 1 - i / 380));
+    let alpha = 0.03;
 
-    // ── 단어 버튼 ──────────────────────────────────────────
-    const wordsBar = document.getElementById('words');
-    const chipEls = {};
-    WORDS.forEach((wd) => {
-      const b = document.createElement('button');
-      b.className = 'chip'; b.type = 'button'; b.textContent = wd.w;
-      b.setAttribute('aria-pressed', 'false');
-      b.addEventListener('click', () => choose({ word: wd.w }));
-      wordsBar.appendChild(b);
-      chipEls[wd.w] = b;
-    });
+    // ── 캔버스, 카메라 ─────────────────────────────────────
+    const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d');
+    let W = 0, H = 0, dpr = 1;
+    const cam = { x: 0, y: 0, k: 1 };
+    let anim = null, sel = null, hover = null, stripWord = null, userMoved = false, C = {};
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // ── 상태와 렌더링 ──────────────────────────────────────
-    let sel = { word: 'unbreakable' };
-    const same = (a, b) => (a.word && a.word === b.word) || (a.part && a.part === b.part);
-    function choose(next) { sel = same(sel, next) ? {} : next; render(); }
+    function readColors() {
+      const cs = getComputedStyle(document.documentElement), g = (v) => cs.getPropertyValue(v).trim();
+      C = { p: g('--pre'), r: g('--root'), s: g('--suf'), w: g('--text'), edge: g('--edge'), text: g('--text'), muted: g('--muted'), bg: g('--graph') };
+    }
+    readColors();
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
 
-    const partInfo = (id) => {
-      const [k, t] = id.split(':');
-      return { k, t, ko: KIND[k].find((x) => x[0] === t)[1] };
-    };
+    function fitTarget() {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      nodes.forEach((n) => { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); });
+      const pad = 70, k = Math.min(W / (x1 - x0 + pad * 2), H / (y1 - y0 + pad * 2));
+      return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k: Math.min(Math.max(k, 0.3), 1.5) };
+    }
+    function resize() {
+      const r = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      if (!userMoved && !anim && !sel) Object.assign(cam, fitTarget());
+    }
+    new ResizeObserver(resize).observe(canvas);
+    resize();
 
-    function render() {
-      let activeWords;
-      if (sel.word) activeWords = WORDS.filter((w) => w.w === sel.word);
-      else if (sel.part) activeWords = WORDS.filter((w) => w.ids.includes(sel.part));
-      else activeWords = [];
-      const filtering = activeWords.length > 0;
-      const activeIds = new Set(activeWords.flatMap((w) => w.ids));
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    function flyTo(to) { anim = { t0: performance.now(), dur: reduce ? 1 : 800, from: { ...cam }, to }; }
+    const toScreen = (n) => [(n.x - cam.x) * cam.k + W / 2, (n.y - cam.y) * cam.k + H / 2];
+    const toWorld = (sx, sy) => [(sx - W / 2) / cam.k + cam.x, (sy - H / 2) / cam.k + cam.y];
 
-      WORDS.forEach((wd) => {
-        const on = activeWords.includes(wd);
-        wd.paths.forEach((p) => {
-          p.classList.toggle('on', on);
-          p.classList.toggle('dim', filtering && !on);
-        });
-        chipEls[wd.w].setAttribute('aria-pressed', String(sel.word === wd.w));
-        chipEls[wd.w].classList.toggle('faded', filtering && !on);
-      });
-      Object.entries(nodeEls).forEach(([id, g]) => {
-        g.classList.toggle('on', filtering && activeIds.has(id));
-        g.classList.toggle('dim', filtering && !activeIds.has(id));
-      });
-      // 선택된 요소를 위로
-      activeWords.forEach((w) => w.paths.forEach((p) => edgesLayer.appendChild(p)));
-      renderDetail(activeWords);
+    // ── 그리기 ─────────────────────────────────────────────
+    function draw(now) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+      const focusId = sel || hover;
+      const F = focusId ? new Set([focusId, ...adj[focusId]]) : null;
+
+      ctx.lineCap = 'round';
+      for (const [A, B] of links) {
+        const on = F && (A.id === focusId || B.id === focusId);
+        const [ax, ay] = toScreen(A), [bx, by] = toScreen(B);
+        ctx.globalAlpha = !F ? 0.38 : on ? 1 : 0.06;
+        ctx.strokeStyle = on ? C[(A.type === 'w' ? B : A).type] : C.edge;
+        ctx.lineWidth = on ? 2.4 : 1;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      }
+      ctx.textAlign = 'center';
+      for (const n of nodes) {
+        const [x, y] = toScreen(n), r = n.r * Math.min(Math.max(cam.k, 0.7), 1.6);
+        const lit = !F || F.has(n.id);
+        ctx.globalAlpha = lit ? 1 : 0.13;
+        ctx.fillStyle = C[n.type];
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+        if (n.id === sel) {
+          ctx.globalAlpha = 0.9; ctx.strokeStyle = C[n.type]; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(x, y, r + 6 + Math.sin(now / 260) * 2.2, 0, 6.2832); ctx.stroke();
+        }
+        const showLabel = n.type !== 'w' || cam.k > 1.2 || (F && F.has(n.id));
+        if (showLabel && lit) {
+          ctx.globalAlpha = 1;
+          ctx.font = `${n.type === 'w' ? 500 : 700} ${n.type === 'w' ? 12.5 : 13.5}px Inter, "Noto Sans KR", sans-serif`;
+          ctx.lineWidth = 4; ctx.strokeStyle = C.bg; ctx.strokeText(n.label, x, y + r + 15);
+          ctx.fillStyle = n.type === 'w' ? C.text : C[n.type]; ctx.fillText(n.label, x, y + r + 15);
+          if (n.id === sel || n.id === hover) {
+            ctx.font = '11.5px "Noto Sans KR", Inter, sans-serif'; ctx.fillStyle = C.muted;
+            ctx.strokeText(n.ko, x, y + r + 29); ctx.fillText(n.ko, x, y + r + 29);
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
     }
 
-    const chipHTML = (id) => {
-      const { k, t } = partInfo(id);
-      return `<span class="part ${k}">${t}</span>`;
-    };
+    function frame(now) {
+      if (anim) {
+        const p = Math.min(1, (now - anim.t0) / anim.dur), e = ease(p);
+        const to = anim.to.id ? { x: byId[anim.to.id].x, y: byId[anim.to.id].y, k: anim.to.k } : anim.to;
+        cam.x = anim.from.x + (to.x - anim.from.x) * e;
+        cam.y = anim.from.y + (to.y - anim.from.y) * e;
+        cam.k = anim.from.k + (to.k - anim.from.k) * e;
+        if (p >= 1) anim = null;
+      }
+      if (alpha > 0.004) { tick(alpha); alpha *= 0.985; }
+      draw(now);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
 
-    function renderDetail(activeWords) {
-      const box = document.getElementById('detail');
-      if (sel.word) {
-        const wd = activeWords[0];
-        box.innerHTML =
-          `<div class="eq">${wd.ids.map(chipHTML).join('<span class="plus">+</span>')}</div>` +
-          `<div class="result"><span>=</span> <b>${wd.w}</b> <span>· ${wd.ko}</span></div>` +
-          `<div class="meanings">${wd.ids.map((id) => {
-            const { k, t, ko } = partInfo(id);
-            return `<span class="meaning ${k}" style="--c:var(--${k === 'p' ? 'pre' : k === 'r' ? 'root' : 'suf'})"><b>${SIGN[k](t)}</b>${ko}</span>`;
-          }).join('')}</div>`;
-      } else if (sel.part) {
-        const { k, t, ko } = partInfo(sel.part);
-        box.innerHTML =
-          `<div class="eq">${chipHTML(sel.part)}</div>` +
-          `<div class="result"><b>${SIGN[k](t)}</b> <span>· ${ko}</span></div>` +
-          `<div class="related">${activeWords.map((w) => `<button class="chip" type="button" data-w="${w.w}">${w.w}</button>`).join('')}</div>` +
-          `<div class="hint">이 조각이 들어간 단어 ${activeWords.length}개</div>`;
-        box.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => choose({ word: b.dataset.w })));
+    // ── 입력 (이동, 확대, 클릭, 드래그) ─────────────────────
+    const hit = (sx, sy) => {
+      let best = null, bd = 1e9;
+      for (const n of nodes) {
+        const [x, y] = toScreen(n), d = Math.hypot(x - sx, y - sy), lim = n.r * Math.min(Math.max(cam.k, 0.7), 1.6) + 7;
+        if (d < lim && d < bd) { best = n; bd = d; }
+      }
+      return best;
+    };
+    let drag = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      const b = canvas.getBoundingClientRect(), sx = e.clientX - b.left, sy = e.clientY - b.top, n = hit(sx, sy);
+      drag = { sx, sy, cx: cam.x, cy: cam.y, node: n, moved: 0 };
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const b = canvas.getBoundingClientRect(), sx = e.clientX - b.left, sy = e.clientY - b.top;
+      if (!drag) {
+        const n = hit(sx, sy); hover = n ? n.id : null; canvas.classList.toggle('hot', !!n); return;
+      }
+      drag.moved = Math.max(drag.moved, Math.hypot(sx - drag.sx, sy - drag.sy));
+      if (drag.moved < 4) return;
+      anim = null; userMoved = true;
+      if (drag.node) {
+        const [wx, wy] = toWorld(sx, sy);
+        drag.node.x = wx; drag.node.y = wy; drag.node.fixed = true; alpha = Math.max(alpha, 0.25);
       } else {
-        box.innerHTML = `<div class="result"><b>단어나 조각을 선택하세요</b></div><div class="hint">같은 조각을 다시 누르면 선택이 해제됩니다</div>`;
+        cam.x = drag.cx - (sx - drag.sx) / cam.k; cam.y = drag.cy - (sy - drag.sy) / cam.k;
       }
+    });
+    canvas.addEventListener('pointerup', () => {
+      if (!drag) return;
+      const { node, moved } = drag;
+      if (node) node.fixed = false;
+      drag = null;
+      if (moved < 4) { node ? select(node.id) : clearSel(); }
+    });
+    canvas.addEventListener('pointerleave', () => { if (!drag) { hover = null; canvas.classList.remove('hot'); } });
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault(); anim = null; userMoved = true;
+      const b = canvas.getBoundingClientRect(), sx = e.clientX - b.left, sy = e.clientY - b.top;
+      const [wx, wy] = toWorld(sx, sy), k = Math.min(4, Math.max(0.3, cam.k * Math.exp(-e.deltaY * 0.0015)));
+      cam.k = k; cam.x = wx - (sx - W / 2) / k; cam.y = wy - (sy - H / 2) / k;
+    }, { passive: false });
+
+    // ── 선택 상태와 UI ─────────────────────────────────────
+    const $ = (s) => document.querySelector(s);
+    const input = $('#q'), sug = $('#sug'), strip = $('#strip'), panel = $('#panel');
+
+    function select(id) {
+      sel = id;
+      if (id.startsWith('w:')) { stripWord = id; input.value = byId[id].label; }
+      flyTo({ id, k: 1.7 });
+      renderUI();
+    }
+    function clearSel() {
+      sel = null; stripWord = null; userMoved = false; input.value = '';
+      flyTo(fitTarget()); renderUI();
     }
 
-    render();
+    const decHTML = (wd) => wd.ids.map((id) => `<i class="${id[0]}">${partInfo(id).t}</i>`).join(' + ');
+    const liHTML = (wd, i = 0) =>
+      `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
+    const partChip = (id, on) => { const { k, t } = partInfo(id); return `<button class="chip ${k}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
+
+    function renderUI() {
+      // 검색 결과 스트립
+      if (stripWord) {
+        const wd = wordOf(stripWord);
+        strip.innerHTML =
+          `<div class="eq">${wd.ids.map((id) => partChip(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
+          `<div class="res"><span>=</span> <b>${wd.w}</b> <span>· ${wd.ko}</span><span class="hint">조각을 누르면 그래프에서 해당 노드로 이동합니다</span></div>`;
+        strip.classList.add('show');
+      } else strip.classList.remove('show');
+
+      // 오른쪽 목록 패널
+      if (!sel) {
+        panel.innerHTML = `<h3>탐색</h3><p class="sub">그래프의 노드를 클릭하거나 위에서 단어를 검색해 보세요.</p>` +
+          `<p class="empty">색이 있는 큰 노드는 <b style="color:var(--pre)">접두사</b>, <b style="color:var(--root)">어근</b>, <b style="color:var(--suf)">접미사</b> 이고, 작은 점은 단어입니다. 선은 단어가 어떤 조각으로 이루어졌는지를 나타냅니다.</p>`;
+      } else if (sel[0] !== 'w') {
+        const { k, t, ko } = partInfo(sel), list = WORDS.filter((w) => w.ids.includes(sel));
+        panel.innerHTML = `<h3><span class="chip ${k}">${SIGN[k](t)}</span></h3><p class="sub">${KIND_KO[k]} · ${ko} · 연결된 단어 ${list.length}개</p>` + list.map(liHTML).join('');
+      } else {
+        const wd = wordOf(sel);
+        panel.innerHTML = `<h3>${wd.w}</h3><p class="sub">${wd.ko} · 같은 조각을 쓰는 다른 단어</p>` +
+          wd.ids.map((pid) => {
+            const { k, t, ko } = partInfo(pid), others = WORDS.filter((w) => w !== wd && w.ids.includes(pid));
+            return `<div class="group"><div class="gh">${partChip(pid)} ${ko}</div>` +
+              (others.length ? others.map(liHTML).join('') : `<p class="empty">이 조각을 쓰는 다른 단어가 없습니다.</p>`) + `</div>`;
+          }).join('');
+      }
+      panel.scrollTop = 0;
+    }
+
+    // 클릭 위임: 칩, 목록, 예시
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-id]'); if (t && !t.closest('.suggest')) { select(t.dataset.id); return; }
+      const ex = e.target.closest('[data-q]'); if (ex) { select('w:' + ex.dataset.q); }
+    });
+    $('#reset').addEventListener('click', clearSel);
+
+    // ── 검색 ───────────────────────────────────────────────
+    let items = [], idx = -1;
+    function search(q) {
+      q = q.trim().toLowerCase(); if (!q) return [];
+      const ws = WORDS.map((w) => ({ id: 'w:' + w.w, score: w.w === q ? 0 : w.w.startsWith(q) ? 1 : w.w.includes(q) ? 2 : w.ko.includes(q) ? 3 : 9 }));
+      const ps = nodes.filter((n) => n.type !== 'w').map((n) => ({ id: n.id, score: n.t === q ? 1 : n.t.startsWith(q) ? 2 : n.ko.includes(q) ? 4 : 9 }));
+      return [...ws, ...ps].filter((x) => x.score < 9).sort((a, b) => a.score - b.score).slice(0, 7).map((x) => x.id);
+    }
+    function renderSug() {
+      const q = input.value;
+      items = search(q); idx = items.length ? 0 : -1;
+      sug.innerHTML = items.length ? items.map((id, i) => {
+        const n = byId[id], wd = n.type === 'w' ? wordOf(id) : null;
+        return `<li role="option" data-sid="${id}" class="${i === idx ? 'act' : ''} ${n.type}"><b>${n.label}</b><span class="dec">${wd ? wd.ids.map((p) => partInfo(p).t).join(' + ') : KIND_KO[n.type]}</span><em>${n.ko}</em></li>` ;
+      }).join('') : (q.trim() ? `<li class="none">검색 결과가 없습니다</li>` : '');
+      const open = q.trim() !== '';
+      sug.classList.toggle('open', open); input.setAttribute('aria-expanded', String(open));
+    }
+    const closeSug = () => { sug.classList.remove('open'); input.setAttribute('aria-expanded', 'false'); };
+    input.addEventListener('input', renderSug);
+    input.addEventListener('focus', () => { if (input.value.trim()) renderSug(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); if (!items.length) return;
+        idx = (idx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        [...sug.children].forEach((li, i) => li.classList.toggle('act', i === idx));
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); if (items[idx]) { select(items[idx]); closeSug(); input.blur(); }
+      } else if (e.key === 'Escape') closeSug();
+    });
+    sug.addEventListener('mousedown', (e) => {
+      const li = e.target.closest('[data-sid]'); if (!li) return;
+      e.preventDefault(); select(li.dataset.sid); closeSug();
+    });
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest('.search')) closeSug(); });
+
+    renderUI();
   </script>
 </body>
 </html>
