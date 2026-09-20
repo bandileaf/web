@@ -114,6 +114,8 @@
     .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
     .tools { position: absolute; right: 12px; top: 12px; display: flex; gap: 8px; align-items: center; }
     .tools span { font-size: .76rem; color: var(--muted); }
+    .dbs::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--c, var(--muted)); }
+    .dbs.ok { --c: var(--root); } .dbs.off { --c: var(--suf); }
     .tbtn { padding: 6px 14px; border-radius: 999px; font-size: .82rem; background: var(--surface); border: 1px solid var(--border); }
     .tbtn:hover { border-color: var(--pre); }
 
@@ -142,7 +144,7 @@
     @media (max-width: 820px) {
       .stage { grid-template-columns: 1fr; }
       .panel { height: auto; max-height: none; }
-      .tools span { display: none; }
+      .tools .hintt { display: none; }
     }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
@@ -171,7 +173,7 @@
     <div class="stage">
       <div class="card graph">
         <canvas id="cv" aria-label="단어 조각 네트워크 그래프"></canvas>
-        <div class="tools"><span>드래그 이동 · 휠 확대</span><button class="tbtn" id="reset" type="button">전체 보기</button></div>
+        <div class="tools"><span class="hintt">드래그 이동 · 휠 확대</span><span class="dbs" id="dbs"></span><button class="tbtn" id="reset" type="button">전체 보기</button></div>
         <div class="legend">
           <span class="p"><i></i>접두사</span><span class="r"><i></i>어근</span><span class="s"><i></i>접미사</span><span class="w"><i></i>단어</span>
         </div>
@@ -184,10 +186,11 @@
 
   <script>
     // ── 데이터 ─────────────────────────────────────────────
-    const PRE = [['un','부정'],['re','다시'],['pre','이전'],['im','안으로'],['ex','밖으로'],['trans','가로질러'],['dis','반대'],['inter','사이'],['con','함께'],['de','아래로 · 반대']];
-    const ROOT = [['happy','행복한'],['break','깨다'],['use','사용하다'],['view','보다'],['dict','말하다'],['port','나르다'],['agree','동의하다'],['act','행하다'],['form','모양'],['struct','짓다']];
-    const SUF = [['able','~할 수 있는'],['ful','~로 가득한'],['less','~이 없는'],['ion','행위 · 명사'],['ment','결과 · 명사'],['ive','~하는 성향'],['or','~하는 사람']];
-    const WORDS = [
+    // 오프라인 대체 데이터 (Supabase 에 연결되면 DB 값으로 교체된다)
+    let PRE = [['un','부정'],['re','다시'],['pre','이전'],['im','안으로'],['ex','밖으로'],['trans','가로질러'],['dis','반대'],['inter','사이'],['con','함께'],['de','아래로 · 반대']];
+    let ROOT = [['happy','행복한'],['break','깨다'],['use','사용하다'],['view','보다'],['dict','말하다'],['port','나르다'],['agree','동의하다'],['act','행하다'],['form','모양'],['struct','짓다']];
+    let SUF = [['able','~할 수 있는'],['ful','~로 가득한'],['less','~이 없는'],['ion','행위 · 명사'],['ment','결과 · 명사'],['ive','~하는 성향'],['or','~하는 사람']];
+    let WORDS = [
       { w: 'unhappy', p: 'un', r: 'happy', s: null, ko: '불행한' },
       { w: 'unbreakable', p: 'un', r: 'break', s: 'able', ko: '깨지지 않는' },
       { w: 'reusable', p: 're', r: 'use', s: 'able', ko: '재사용할 수 있는' },
@@ -210,7 +213,7 @@
       { w: 'construction', p: 'con', r: 'struct', s: 'ion', ko: '건설' },
       { w: 'destruction', p: 'de', r: 'struct', s: 'ion', ko: '파괴' }
     ];
-    const KIND = { p: PRE, r: ROOT, s: SUF };
+    let KIND = { p: PRE, r: ROOT, s: SUF };
     const SIGN = { p: (t) => t + '-', r: (t) => t, s: (t) => '-' + t };
     const KIND_KO = { p: '접두사', r: '어근', s: '접미사' };
 
@@ -222,15 +225,22 @@
       const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
       nodes.push(n); byId[id] = n; adj[id] = new Set();
     };
-    for (const k of ['p', 'r', 's']) {
-      KIND[k].forEach(([t, ko]) => addNode(k + ':' + t, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80));
+    function buildGraph() {
+      nodes.length = 0; links.length = 0; seed = 7;
+      Object.keys(byId).forEach((k) => delete byId[k]); Object.keys(adj).forEach((k) => delete adj[k]);
+      KIND = { p: PRE, r: ROOT, s: SUF };
+      for (const k of ['p', 'r', 's']) {
+        KIND[k].forEach(([t, ko]) => addNode(k + ':' + t, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80));
+      }
+      WORDS.forEach((wd) => {
+        wd.ids = [wd.p && 'p:' + wd.p, 'r:' + wd.r, wd.s && 's:' + wd.s].filter(Boolean);
+        addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300);
+        wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
+      });
+      nodes.forEach((n) => { n.r = n.type === 'w' ? 5 : 7 + adj[n.id].size * 1.7; });
+      for (let i = 0; i < 520; i++) tick(Math.max(0.04, 1 - i / 380));
+      alpha = 0.03;
     }
-    WORDS.forEach((wd) => {
-      wd.ids = [wd.p && 'p:' + wd.p, 'r:' + wd.r, wd.s && 's:' + wd.s].filter(Boolean);
-      addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300);
-      wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
-    });
-    nodes.forEach((n) => { n.r = n.type === 'w' ? 5 : 7 + adj[n.id].size * 1.7; });
     const wordOf = (id) => WORDS.find((w) => 'w:' + w.w === id);
     const partInfo = (id) => { const [k, t] = id.split(':'); return { k, t, ko: byId[id].ko }; };
 
@@ -258,7 +268,6 @@
         n.vx *= 0.82; n.vy *= 0.82; n.x += n.vx; n.y += n.vy;
       }
     }
-    for (let i = 0; i < 520; i++) tick(Math.max(0.04, 1 - i / 380));
     let alpha = 0.03;
 
     // ── 캔버스, 카메라 ─────────────────────────────────────
@@ -489,7 +498,41 @@
     });
     document.addEventListener('mousedown', (e) => { if (!e.target.closest('.search')) closeSug(); });
 
-    renderUI();
+    // ── Supabase (읽기 전용, publishable key 는 공개해도 안전. RLS 로 SELECT 만 허용) ──
+    const SB_URL = 'https://gdqotnfcarjgfghourdm.supabase.co';
+    const SB_KEY = 'sb_publishable_GN3y0r8Lg9f-tbVQeln1qQ_9fXoNk8C';
+    async function sbGet(table, order, signal) {
+      const r = await fetch(`${SB_URL}/rest/v1/${table}?select=*&order=${order}`, { headers: { apikey: SB_KEY }, signal });
+      if (!r.ok) throw new Error(table + ' ' + r.status);
+      return r.json();
+    }
+    async function loadFromSupabase() {
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+      try {
+        const [ms, ws, wm] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal), sbGet('word_morphemes', 'position', ctl.signal)]);
+        if (!ws.length || !ms.length) return null;
+        const mById = new Map(ms.map((m) => [m.id, m]));
+        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
+        const words = ws.map((w) => {
+          const parts = wm.filter((x) => x.word_id === w.id).map((x) => mById.get(x.morpheme_id)).filter(Boolean);
+          const pick = (type) => (parts.find((m) => m.type === type) || {}).text || null;
+          return { w: w.word, p: pick('prefix'), r: pick('root'), s: pick('suffix'), ko: w.meaning_ko };
+        }).filter((w) => w.r);
+        return { PRE: list('prefix'), ROOT: list('root'), SUF: list('suffix'), WORDS: words };
+      } catch (e) { console.warn('Supabase 로드 실패, 내장 데이터 사용:', e); return null; }
+      finally { clearTimeout(timer); }
+    }
+    const dbs = document.getElementById('dbs');
+    const setStatus = (ok, text) => { dbs.className = 'dbs ' + (ok ? 'ok' : 'off'); dbs.textContent = text; };
+
+    buildGraph(); renderUI(); setStatus(false, '연결 중…');
+    loadFromSupabase().then((d) => {
+      if (!d) { setStatus(false, '내장 데이터'); return; }
+      ({ PRE, ROOT, SUF, WORDS } = d);
+      sel = null; stripWord = null; hover = null; input.value = '';
+      buildGraph(); Object.assign(cam, fitTarget()); anim = null; renderUI();
+      setStatus(true, 'DB 연결됨 · 단어 ' + WORDS.length + '개');
+    });
   </script>
 </body>
 </html>
