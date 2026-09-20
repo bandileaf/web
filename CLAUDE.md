@@ -10,4 +10,5 @@
 - The site only reads with the publishable key in `index.html` (RLS allows SELECT only). Writes need the secret key.
 - Read the secret key from the local env var `SUPABASE_SECRET_KEY` (or the gitignored `db/.env.local`). Never write it into any tracked file, commit, or chat output.
 - Insert via the Supabase REST API (`/rest/v1/<table>`). Add rows to `words` and `morphemes` (if new), then link them in `word_morphemes` with `position` 1..3 (prefix, root, suffix).
+- To add or check a word, use the `add-word` skill (`.claude/skills/add-word`): verify etymology with Wiktionary and Etymonline first, confirm with the user, then insert.
 - After inserting, re-read the tables to verify, and keep `db/schema.sql` seed data unchanged (it is only the initial seed).
