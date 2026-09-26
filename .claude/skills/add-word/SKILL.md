@@ -18,8 +18,8 @@ Two tables. **Everything that is a word or a root lives in `words`; `morphemes` 
 - `words.forms`: the actual spelling of each part, same order as `parts` (`{com,passion}` for a variant `com` of the representative prefix `con`).
 - `morphemes`: `type` prefix|suffix, `text` (representative, no hyphen), `meaning_ko`, `variants text[]` (spelling variants: `ad` -> `{ac,af,ap,ar,as,at}`); `unique(type,text)`.
 - Bound Latin/Greek roots that are not English words (`dict`, `spect`) are unsplit `words` rows with the one part of speech their meaning implies. If a root's spelling equals a real English word with another meaning (`pair` worse / a pair, `fat`, `not`), keep ONE row and give each sense its part-of-speech column.
-- `words.morpheme_ids`, `words.kind` and `words.meaning_ko` are obsolete (dropped by `db/migrate_v2_step6.sql`); never write them.
-- DDL (ALTER/DROP) cannot go through REST: write a `db/migrate_v2_*.sql` file and ask the user to run it in the Supabase SQL Editor.
+- The whole structure is defined in `db/schema.sql` (final form, safe to re-run). There are no other columns; the old `morpheme_ids`, `kind` and `meaning_ko` on words no longer exist.
+- DDL (ALTER/DROP) cannot go through REST: change `db/schema.sql` (keep it the single source of truth, with the idempotent statements needed to upgrade a live DB at the end) and ask the user to run it in the Supabase SQL Editor.
 
 ## 1. Maintenance toolkit (`scripts/`, Python, key from env `SUPABASE_SECRET_KEY`)
 
@@ -78,4 +78,4 @@ Use `apply_fixes.py` (it handles lookup, creation, variants and orphans). Key co
 
 Run `verify_all.py`, then report the final `pre + dict + ion` style breakdown and the part-of-speech meanings. The site reads the DB live, so no code change or push is needed. Tell the user to refresh (`Ctrl+F5`) to see the node on the graph.
 
-Do not edit `db/schema.sql`; it is only the initial seed.
+`db/schema.sql` is structure only (no data); edit it only when the structure changes.
