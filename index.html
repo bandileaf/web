@@ -222,6 +222,8 @@
     const nodes = [], byId = {}, links = [], adj = {};
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+    const isPiece = (n) => n.type !== 'w' || n.root;     // prefixes, suffixes and roots are drawn as "pieces"
+    const colorKey = (n) => (n.root ? 'r' : n.type);
     const addNode = (id, type, label, ko, t, x) => {
       const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
       nodes.push(n); byId[id] = n; adj[id] = new Set();
@@ -251,7 +253,11 @@
         wd.ids = wd.ids.filter((pid) => byId[pid]);
         wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
       });
-      nodes.forEach((n) => { n.r = n.type === 'w' ? 5 + Math.min(7, Math.max(0, adj[n.id].size - 2) * 0.8) : 7 + adj[n.id].size * 1.7; });
+      // A root is a word that cannot be split further (no parts) and is used by other words.
+      const usedAsPart = new Set(), splitWords = new Set();
+      WORDS.forEach((wd) => { if (wd.ids.length) splitWords.add('w:' + wd.w); wd.ids.forEach((id) => { if (id[0] === 'w') usedAsPart.add(id); }); });
+      nodes.forEach((n) => { n.root = n.type === 'w' && usedAsPart.has(n.id) && !splitWords.has(n.id); });
+      nodes.forEach((n) => { n.r = !isPiece(n) ? 5 + Math.min(7, Math.max(0, adj[n.id].size - 2) * 0.8) : 7 + adj[n.id].size * 1.7; });
       // Large imports (thousands of words) need fewer initial-layout passes to
       // stay responsive; the grid-based repulsion in tick() keeps each pass cheap.
       const passes = nodes.length > 600 ? 260 : 520;
@@ -351,7 +357,7 @@
         const on = F && (A.id === focusId || B.id === focusId);
         const [ax, ay] = toScreen(A), [bx, by] = toScreen(B);
         ctx.globalAlpha = !F ? 0.38 : on ? 1 : 0.06;
-        ctx.strokeStyle = on ? C[(A.type === 'w' ? B : A).type] : C.edge;
+        ctx.strokeStyle = on ? C[colorKey(A.type === 'w' ? B : A)] : C.edge;
         ctx.lineWidth = on ? 2.4 : 1;
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
       }
@@ -360,18 +366,18 @@
         const [x, y] = toScreen(n), r = n.r * Math.min(Math.max(cam.k, 0.7), 1.6);
         const lit = !F || F.has(n.id);
         ctx.globalAlpha = lit ? 1 : 0.13;
-        ctx.fillStyle = C[n.type];
+        ctx.fillStyle = C[colorKey(n)];
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
         if (n.id === sel) {
-          ctx.globalAlpha = 0.9; ctx.strokeStyle = C[n.type]; ctx.lineWidth = 2;
+          ctx.globalAlpha = 0.9; ctx.strokeStyle = C[colorKey(n)]; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(x, y, r + 6 + Math.sin(now / 260) * 2.2, 0, 6.2832); ctx.stroke();
         }
-        const showLabel = n.type !== 'w' || cam.k > 1.2 || (F && F.has(n.id));
+        const piece = isPiece(n), showLabel = piece || cam.k > 1.2 || (F && F.has(n.id));
         if (showLabel && lit) {
           ctx.globalAlpha = 1;
-          ctx.font = `${n.type === 'w' ? 500 : 700} ${n.type === 'w' ? 12.5 : 13.5}px Inter, "Noto Sans KR", sans-serif`;
+          ctx.font = `${piece ? 700 : 500} ${piece ? 13.5 : 12.5}px Inter, "Noto Sans KR", sans-serif`;
           ctx.lineWidth = 4; ctx.strokeStyle = C.bg; ctx.strokeText(n.label, x, y + r + 15);
-          ctx.fillStyle = n.type === 'w' ? C.text : C[n.type]; ctx.fillText(n.label, x, y + r + 15);
+          ctx.fillStyle = piece ? C[colorKey(n)] : C.text; ctx.fillText(n.label, x, y + r + 15);
           if (n.id === sel || n.id === hover) {
             ctx.font = '11.5px "Noto Sans KR", Inter, sans-serif'; ctx.fillStyle = C.muted;
             ctx.strokeText(n.ko, x, y + r + 29); ctx.fillText(n.ko, x, y + r + 29);
@@ -570,21 +576,17 @@
         const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
         // words.parts: 'm12' = morphemes.id (prefix/suffix), 'w7' = words.id (a root or a word used as a component)
         const wById = new Map(ws.map((w) => [w.id, w]));
-        const roots = new Map();
-        const words = ws.filter((w) => w.kind === 'word').map((w) => {
+        // Every entry is a word; one that cannot be split (parts = []) is a root when others use it.
+        const words = ws.map((w) => {
           const parts = [];
           (w.parts || []).forEach((p) => {
             const id = Number(p.slice(1));
             if (p[0] === 'm') { const m = mById.get(id); if (m) parts.push([m.type === 'prefix' ? 'p' : 's', m.text]); }
-            else {
-              const r = wById.get(id); if (!r) return;
-              if (r.kind === 'word') parts.push(['w', r.word]);                       // a real word: its own node
-              else { parts.push(['r', r.word]); roots.set(r.word, koOf(r)); }        // bound root (dict, mit)
-            }
+            else { const r = wById.get(id); if (r) parts.push(['w', r.word]); }
           });
           return { w: w.word, parts, ko: koOf(w) };
         });
-        return { PRE: list('prefix'), ROOT: [...roots], SUF: list('suffix'), WORDS: words };
+        return { PRE: list('prefix'), ROOT: [], SUF: list('suffix'), WORDS: words };
       } catch (e) { console.warn('Supabase 로드 실패, 내장 데이터 사용:', e); return null; }
       finally { clearTimeout(timer); }
     }

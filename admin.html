@@ -129,7 +129,7 @@
         const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']].filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
         const wById = new Map(ws.map((w) => [w.id, w]));
         const byM = new Map(), byW = new Map();
-        ws.filter((w) => w.kind === 'word').forEach((w) => (w.parts || []).forEach((p) => {
+        ws.forEach((w) => (w.parts || []).forEach((p) => {
           const map = p[0] === 'm' ? byM : byW, id = Number(p.slice(1));
           (map.get(id) || map.set(id, []).get(id)).push(w);
         }));
@@ -138,11 +138,11 @@
           text: m.text, label: SIGN[m.type](m.text), meaning: m.meaning_ko || '', words: asWords(byM.get(m.id))
         }));
         [...byW].forEach(([id, list]) => {
-          const r = wById.get(id); if (!r) return;
+          const r = wById.get(id); if (!r || (r.parts || []).length) return;   // roots = words that cannot be split (parts = [])
           rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r) || r.meaning_ko || '', words: asWords(list) });
         });
         rows.r.sort((a, b) => a.text.localeCompare(b.text));
-        stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${rows.p.length + rows.r.length + rows.s.length}</b>개 · 단어 <b>${ws.filter((w) => w.kind === 'word').length}</b>개`;
+        stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${rows.p.length + rows.r.length + rows.s.length}</b>개 · 단어 <b>${ws.length}</b>개`;
         render();
       } catch (e) {
         console.warn(e);
