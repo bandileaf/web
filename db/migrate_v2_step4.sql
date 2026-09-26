@@ -1,7 +1,10 @@
--- Word Atlas v2, step 4: grammatical class of roots.
+-- Word Atlas v2, step 4: grammatical classes of roots.
 -- Run in Supabase Dashboard > SQL Editor.
 --
---   morphemes.pos  text  noun | verb | adj | adv  (roots only; null for prefixes/suffixes and not yet classified)
+--   morphemes.pos  text[]  any of noun | verb | adj | adv, e.g. grant -> {verb,noun}
+--                          (roots only; empty for prefixes/suffixes and roots not classified yet)
 
-alter table morphemes add column if not exists pos text
-  check (pos in ('noun', 'verb', 'adj', 'adv'));
+alter table morphemes add column if not exists pos text[] not null default '{}';
+alter table morphemes drop constraint if exists morphemes_pos_check;
+alter table morphemes add constraint morphemes_pos_check
+  check (pos <@ array['noun', 'verb', 'adj', 'adv']);
