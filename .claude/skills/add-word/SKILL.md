@@ -1,12 +1,36 @@
 ---
 name: add-word
-description: Verify a word's etymology (prefix / root / suffix) against Wiktionary and Etymonline, then register it in the Word Atlas Supabase DB. Use when the user asks to add, register, check, or fix a word (e.g. "predict 추가해줘", "이 단어 어원 확인하고 등록해줘").
+description: Maintain the Word Atlas Supabase DB. Verify a word's etymology (prefix / root / suffix) against Wiktionary and Etymonline, then add, fix, or re-check words, merge spelling variants, and verify DB integrity. Use when the user asks to add, register, check, fix, or maintain words (e.g. "predict 추가해줘", "이 단어 어원 확인하고 등록해줘", "남은 단어 검증 이어서 해줘", "DB 점검해줘").
 ---
 
 # add-word
 
 Check a word's morphology with two sources, get the user's confirmation, then insert it into Supabase.
 Talk to the user in Korean. Never print the secret key.
+
+## 0. Maintenance toolkit (`scripts/`, Python, key from env `SUPABASE_SECRET_KEY`)
+
+Run from `.claude/skills/add-word/scripts/` (use Python, not PowerShell, for Korean text; write JSON files as UTF-8).
+
+| script | use |
+|---|---|
+| `fetch_ety.py N` or `fetch_ety.py word ...` | next N words with `etym_checked_at` null (or the given words), current split + condensed Wiktionary etymology |
+| `apply_fixes.py batch.json [--force]` | apply decisions; `keep` just stamps `etym_checked_at`; `split` writes `morpheme_ids` / `forms`, maps spelling variants to representatives, deletes orphaned morphemes. New words need `meaning_ko`. |
+| `verify_all.py` | integrity + spelling check (BROKEN / FORM? / CLOSE / MISMATCH) and the count of unchecked words. Run after every batch; fix anything you introduced. |
+| `merge_variants.py type rep "v1 v2" [--apply]` | merge spelling variants (ac/af/ap -> ad) into one representative; dry run by default |
+
+Batch item: `{"word":"react","action":"keep"}` or `{"word":"react","action":"split","prefix":"re","prefix_meaning":"다시","root":"act","root_meaning":"행동하다","suffix":null}`. Part texts are the **actual spelling** (`ac`, not `ad`); the script maps variants to the representative.
+
+**Progress** lives in the DB: `words.etym_checked_at` (null = not verified yet). Resume with `GET /words?etym_checked_at=is.null`. Continue in batches of ~40-50: fetch -> decide -> write `batchNN.json` (scratch dir, not the repo) -> apply -> verify.
+
+**Decision policy** (per word, from Wiktionary + Etymonline):
+- Split only if the affix is visible in the English spelling; accept e-drop, y-drop and consonant doubling.
+- Keep unsplit when the etymology is unclear, native/Germanic, or a compound (root slot holds one root); unsplit = the word itself as its only root.
+- Avoid homograph collisions (`anti` vs `ante`, `di` = dis variant vs Greek "two"); ask when unsure.
+- Variant groups already merged: prefix ad, con, in, ex, dis, sub, ob, ab, pro, super, inter, trans; suffix able, ion, ent, ence, ity, ize, ify, al, ic, or (see `morphemes.variants`).
+- Fix source typos in the word list (e.g. `phychologist` -> `psychologist`) before splitting.
+
+**Schema changes** (ALTER/DROP) cannot go through REST: write a `db/migrate_v2_*.sql` file and ask the user to run it in the Supabase SQL Editor.
 
 ## 1. Look up the sources (per word, on demand)
 
