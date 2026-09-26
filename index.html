@@ -570,9 +570,9 @@
         if (!ws.length || !ms.length) return null;
         const mById = new Map(ms.map((m) => [m.id, m]));
         // A word's meaning per part of speech ("n. 서비스, v. 제공하다") when the DB has it.
-        const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']]
+        const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.'], ['prep', 'prep.'], ['conj', 'conj.']]
           .filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
-        const koOf = (w) => posText(w) || w.meaning_ko;
+        const koOf = (w) => posText(w);      // words carry their meaning only per part of speech
         const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
         // words.parts: 'm12' = morphemes.id (prefix/suffix), 'w7' = words.id (a root or a word used as a component)
         const wById = new Map(ws.map((w) => [w.id, w]));

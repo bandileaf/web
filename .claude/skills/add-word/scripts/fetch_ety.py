@@ -35,6 +35,13 @@ def current(w):
 if sys.argv[1].isdigit():
     todo = [w for w in ws.values() if not w["etym_checked_at"]][:int(sys.argv[1])]
 else:
-    todo = [w for a in sys.argv[1:] for w in req("GET", f"/words?word=eq.{Q(a)}") or [{"word": a, "meaning_ko": "?", "parts": []}]]
+    todo = [w for a in sys.argv[1:] for w in req("GET", f"/words?word=eq.{Q(a)}") or [{"word": a, "parts": []}]]
+
+
+def meaning(w):                                                      # "n. 서비스, v. 제공하다"
+    return ", ".join(f"{ab} {w[k]}" for k, ab in (("noun", "n."), ("verb", "v."), ("adj", "adj."), ("adv", "adv."),
+                                                   ("prep", "prep."), ("conj", "conj.")) if w.get(k)) or "?"
+
+
 for w in todo:
-    print(f"## {w['word']} [{current(w)}] {w['meaning_ko']}\n   {ety(w['word'])}")
+    print(f"## {w['word']} [{current(w)}] {meaning(w)}\n   {ety(w['word'])}")

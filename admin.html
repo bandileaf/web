@@ -126,20 +126,20 @@
       try {
         const [ms, ws] = await Promise.all([get('morphemes', 'id'), get('words', 'id')]);
         // words.parts: 'm12' = morphemes.id (prefix/suffix), 'w7' = words.id (a root or a word used as a component)
-        const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']].filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
+        const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.'], ['prep', 'prep.'], ['conj', 'conj.']].filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
         const wById = new Map(ws.map((w) => [w.id, w]));
         const byM = new Map(), byW = new Map();
         ws.forEach((w) => (w.parts || []).forEach((p) => {
           const map = p[0] === 'm' ? byM : byW, id = Number(p.slice(1));
           (map.get(id) || map.set(id, []).get(id)).push(w);
         }));
-        const asWords = (list) => (list || []).map((w) => ({ word: w.word, ko: posText(w) || w.meaning_ko }));
+        const asWords = (list) => (list || []).map((w) => ({ word: w.word, ko: posText(w) }));
         ms.filter((m) => m.type !== 'root').forEach((m) => rows[KIND[m.type]].push({
           text: m.text, label: SIGN[m.type](m.text), meaning: m.meaning_ko || '', words: asWords(byM.get(m.id))
         }));
         [...byW].forEach(([id, list]) => {
           const r = wById.get(id); if (!r || (r.parts || []).length) return;   // roots = words that cannot be split (parts = [])
-          rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r) || r.meaning_ko || '', words: asWords(list) });
+          rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r), words: asWords(list) });
         });
         rows.r.sort((a, b) => a.text.localeCompare(b.text));
         stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${rows.p.length + rows.r.length + rows.s.length}</b>개 · 단어 <b>${ws.length}</b>개`;

@@ -6,18 +6,31 @@ Model: words.parts (text[]) lists the ordered components of a word, each tagged 
   words.forms holds the actual spelling of each part. parts = [] means the word cannot be split (it is a root).
 
 Item: {"word","action":"keep"}                      -> unsplittable; parts = []
-   or {"word","action":"split","prefix":"un"|null,"prefix_meaning",
-       "root":"happy","root_meaning","suffix":"able"|null,"suffix_meaning"}
-   optional on any item: "meaning_ko" (short meaning, required to create a NEW word) and
-   "pos": {"noun":"서비스","verb":"제공하다"} = the word's meaning per part of speech (words.noun/verb/adj/adv).
+   or {"word","action":"split","prefix":"un"|null,"prefix_meaning","root":"happy","suffix":"able"|null,"suffix_meaning"}
+   "pos": {"noun":"서비스","verb":"제공하다"} = the word's meaning per part of speech
+   (words.noun/verb/adj/adv/prep/conj; several senses in one column separated by " / "). Required to create a
+   NEW word; on an existing word it overwrites only the given columns.
+   "root_pos": same shape, required when the root is not in words yet (it is created as an unchecked word).
 Prefix/suffix texts are the ACTUAL spelling; a text listed in morphemes.variants maps to its representative
-(the spelling stays in words.forms). The root is a WORD: it is looked up in words (created if missing, as an
-unchecked atomic word using root_meaning). Every processed word gets etym_checked_at.
+(the spelling stays in words.forms). The root is a WORD, looked up in words. Words have no meaning_ko any more.
+Every processed word gets etym_checked_at.
 Words that already have etym_checked_at are skipped unless --force."""
 import sys, json, datetime
 from sb import req, one, Q
 
-POS = ("noun", "verb", "adj", "adv")
+POS = ("noun", "verb", "adj", "adv", "prep", "conj")
+
+
+def insert_word(word, pos):
+    """Create an unchecked word whose meaning is given per part of speech (pos = {"noun": "서비스", ...})."""
+    pos = {k: v for k, v in (pos or {}).items() if k in POS and v}
+    if not pos: raise RuntimeError(f"new word '{word}' needs a part-of-speech meaning (pos / root_pos)")
+    row = {"word": word, **pos}
+    try:
+        req("POST", "/words", row, "return=minimal")
+    except RuntimeError as e:
+        if "23502" not in str(e): raise                       # legacy NOT NULL meaning_ko (until schema step 6)
+        req("POST", "/words", {**row, "meaning_ko": next(iter(pos.values()))}, "return=minimal")
 
 
 def morpheme_id(t, text, meaning):
@@ -30,10 +43,10 @@ def morpheme_id(t, text, meaning):
     return one(f"/morphemes?type=eq.{t}&text=eq.{Q(text)}&select=id")["id"]
 
 
-def word_id(text, meaning):
+def word_id(text, pos):
     w = one(f"/words?word=eq.{Q(text)}&select=id")
     if w: return w["id"]
-    req("POST", "/words", {"word": text, "meaning_ko": meaning or text}, "return=minimal")
+    insert_word(text, pos)
     return one(f"/words?word=eq.{Q(text)}&select=id")["id"]
 
 
@@ -41,8 +54,7 @@ def apply_one(item, force):
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     w = one(f"/words?word=eq.{Q(item['word'])}&select=id,parts,etym_checked_at")
     if not w:
-        if not item.get("meaning_ko"): return "NO-WORD (add meaning_ko to insert)"
-        req("POST", "/words", {"word": item["word"], "meaning_ko": item["meaning_ko"]}, "return=minimal")
+        insert_word(item["word"], item.get("pos"))                 # a new word needs its "pos" meanings
         w = one(f"/words?word=eq.{Q(item['word'])}&select=id,parts,etym_checked_at")
     if w["etym_checked_at"] and not force: return "skip-checked"
     patch = {"etym_checked_at": now}
@@ -54,7 +66,7 @@ def apply_one(item, force):
     parts, forms = [], []
     if item.get("prefix"):
         parts.append(f"m{morpheme_id('prefix', item['prefix'], item.get('prefix_meaning', ''))}"); forms.append(item["prefix"])
-    rid = word_id(item["root"], item.get("root_meaning", ""))
+    rid = word_id(item["root"], item.get("root_pos"))
     if rid == w["id"]: return "ERROR: root equals the word itself (use keep)"
     parts.append(f"w{rid}"); forms.append(item["root"])
     if item.get("suffix"):
