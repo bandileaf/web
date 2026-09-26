@@ -4,8 +4,9 @@ Item: {"word","action":"keep"}
    or {"word","action":"split","prefix","prefix_meaning","root","root_meaning","suffix","suffix_meaning"}
 Part texts are the ACTUAL spelling in the word. If a text is listed in morphemes.variants, the
 representative morpheme id is used and the spelling is stored in words.forms.
-"root_pos": ["verb","noun"] sets the root's part(s) of speech when the root is NEW (noun|verb|adj|adv; a free
-root gets every real part of speech, a bound Latin/Greek root the one its meaning implies).
+"root_pos": {"noun":"서비스","verb":"제공하다"} sets the root's meaning per part of speech when the root is NEW
+(keys noun|verb|adj|adv -> morphemes columns; a free root gets every real part of speech, a bound
+Latin/Greek root the one its meaning implies).
 A new word (not in DB) needs "meaning_ko" and is inserted. Every processed word gets etym_checked_at.
 Words that already have etym_checked_at are skipped unless --force."""
 import sys, datetime
@@ -18,7 +19,8 @@ def morpheme_id(t, text, meaning, pos=None):
     m = one(f"/morphemes?type=eq.{t}&variants=cs.{{{Q(text)}}}&select=id")   # spelling variant -> representative
     if m: return m["id"]
     row = {"type": t, "text": text, "meaning_ko": meaning}
-    if t == "root": row["pos"] = pos or []           # roots only: any of noun/verb/adj/adv
+    if t == "root" and pos:                           # roots only: per-POS meaning columns
+        row.update({k: v for k, v in pos.items() if k in ("noun", "verb", "adj", "adv") and v})
     req("POST", "/morphemes?on_conflict=type,text", [row], "resolution=ignore-duplicates,return=minimal")
     return one(f"/morphemes?type=eq.{t}&text=eq.{Q(text)}&select=id")["id"]
 

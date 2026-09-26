@@ -222,8 +222,8 @@
     const nodes = [], byId = {}, links = [], adj = {};
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
-    const addNode = (id, type, label, ko, t, x) => {
-      const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
+    const addNode = (id, type, label, ko, t, x, pos) => {
+      const n = { id, type, label, ko, pos, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
       nodes.push(n); byId[id] = n; adj[id] = new Set();
     };
     function buildGraph() {
@@ -246,9 +246,9 @@
       WORDS.forEach((wd) => wd.ids.forEach((id) => usedMorphemes.add(id)));
 
       for (const k of ['p', 'r', 's']) {
-        KIND[k].forEach(([t, ko]) => {
+        KIND[k].forEach(([t, ko, pos]) => {
           const id = k + ':' + t;
-          if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
+          if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80, pos);
         });
       }
       WORDS.forEach((wd) => {
@@ -263,7 +263,8 @@
       alpha = 0.03;
     }
     const wordOf = (id) => WORDS.find((w) => 'w:' + w.w === id);
-    const partInfo = (id) => { const [k, t] = id.split(':'); return { k, t, ko: byId[id].ko }; };
+    // Roots show their meaning per part of speech ("n. 서비스, v. 제공하다") when the DB has it.
+    const partInfo = (id) => { const [k, t] = id.split(':'), n = byId[id]; return { k, t, ko: n.pos || n.ko }; };
 
     // ── 물리 시뮬레이션 (force-directed) ───────────────────
     // Repulsion is limited to nearby nodes via a spatial hash grid so this
@@ -564,7 +565,9 @@
         const [ms, ws] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal)]);
         if (!ws.length || !ms.length) return null;
         const mById = new Map(ms.map((m) => [m.id, m]));
-        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
+        const posText = (m) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']]
+          .filter(([k]) => m[k]).map(([k, ab]) => ab + ' ' + m[k]).join(', ');
+        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko, posText(m)]);
         const words = ws.map((w) => {
           const parts = (w.morpheme_ids || []).map((id) => mById.get(id)).filter(Boolean);
           const pick = (type) => (parts.find((m) => m.type === type) || {}).text || null;
