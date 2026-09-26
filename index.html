@@ -222,8 +222,8 @@
     const nodes = [], byId = {}, links = [], adj = {};
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
-    const addNode = (id, type, label, ko, t, x, pos) => {
-      const n = { id, type, label, ko, pos, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
+    const addNode = (id, type, label, ko, t, x) => {
+      const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
       nodes.push(n); byId[id] = n; adj[id] = new Set();
     };
     function buildGraph() {
@@ -236,19 +236,22 @@
       // dot connected to the word -- both with the same label -- only means
       // something when OTHER words also share that root. Otherwise it's just
       // a confusing self-connection, so treat it as a plain isolated word.
+      // Data model: a word's `parts` are [kind, text] pairs (p = prefix, r = root word, s = suffix).
+      // An atomic word has no parts; if other words use it as their root it points to that root node.
+      const partsOf = (wd) => wd.parts || [wd.p && ['p', wd.p], wd.r && ['r', wd.r], wd.s && ['s', wd.s]].filter(Boolean);
       const rootUse = {};
-      WORDS.forEach((wd) => { rootUse[wd.r] = (rootUse[wd.r] || 0) + 1; });
+      WORDS.forEach((wd) => partsOf(wd).forEach(([k, t]) => { if (k === 'r') rootUse[t] = (rootUse[t] || 0) + 1; }));
       WORDS.forEach((wd) => {
-        const showRoot = !!(wd.p || wd.s || rootUse[wd.r] > 1);
-        wd.ids = [wd.p && 'p:' + wd.p, showRoot && 'r:' + wd.r, wd.s && 's:' + wd.s].filter(Boolean);
+        wd.ids = partsOf(wd).map(([k, t]) => k + ':' + t);
+        if (!wd.ids.length && rootUse[wd.w] > 0) wd.ids = ['r:' + wd.w];
       });
       const usedMorphemes = new Set();
       WORDS.forEach((wd) => wd.ids.forEach((id) => usedMorphemes.add(id)));
 
       for (const k of ['p', 'r', 's']) {
-        KIND[k].forEach(([t, ko, pos]) => {
+        KIND[k].forEach(([t, ko]) => {
           const id = k + ':' + t;
-          if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80, pos);
+          if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
         });
       }
       WORDS.forEach((wd) => {
@@ -263,8 +266,7 @@
       alpha = 0.03;
     }
     const wordOf = (id) => WORDS.find((w) => 'w:' + w.w === id);
-    // Roots show their meaning per part of speech ("n. 서비스, v. 제공하다") when the DB has it.
-    const partInfo = (id) => { const [k, t] = id.split(':'), n = byId[id]; return { k, t, ko: n.pos || n.ko }; };
+    const partInfo = (id) => { const [k, t] = id.split(':'); return { k, t, ko: byId[id].ko }; };
 
     // ── 물리 시뮬레이션 (force-directed) ───────────────────
     // Repulsion is limited to nearby nodes via a spatial hash grid so this
@@ -565,18 +567,24 @@
         const [ms, ws] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal)]);
         if (!ws.length || !ms.length) return null;
         const mById = new Map(ms.map((m) => [m.id, m]));
-        const posText = (m) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']]
-          .filter(([k]) => m[k]).map(([k, ab]) => ab + ' ' + m[k]).join(', ');
-        // Roots keep their meaning only per part of speech (meaning_ko is for prefixes/suffixes);
-        // the short label / search text of a root is its first part-of-speech meaning.
-        const short = (m) => m.meaning_ko || m.noun || m.verb || m.adj || m.adv || '';
-        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, short(m), posText(m)]);
-        const words = ws.map((w) => {
-          const parts = (w.morpheme_ids || []).map((id) => mById.get(id)).filter(Boolean);
-          const pick = (type) => (parts.find((m) => m.type === type) || {}).text || null;
-          return { w: w.word, p: pick('prefix'), r: pick('root'), s: pick('suffix'), ko: w.meaning_ko };
-        }).filter((w) => w.r);
-        return { PRE: list('prefix'), ROOT: list('root'), SUF: list('suffix'), WORDS: words };
+        // A word's meaning per part of speech ("n. 서비스, v. 제공하다") when the DB has it.
+        const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']]
+          .filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
+        const koOf = (w) => posText(w) || w.meaning_ko;
+        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
+        // words.parts: 'm12' = morphemes.id (prefix/suffix), 'w7' = words.id (a root or a word used as a component)
+        const wById = new Map(ws.map((w) => [w.id, w]));
+        const roots = new Map();
+        const words = ws.filter((w) => w.kind === 'word').map((w) => {
+          const parts = [];
+          (w.parts || []).forEach((p) => {
+            const id = Number(p.slice(1));
+            if (p[0] === 'm') { const m = mById.get(id); if (m) parts.push([m.type === 'prefix' ? 'p' : 's', m.text]); }
+            else { const r = wById.get(id); if (r) { parts.push(['r', r.word]); roots.set(r.word, koOf(r)); } }
+          });
+          return { w: w.word, parts, ko: koOf(w) };
+        });
+        return { PRE: list('prefix'), ROOT: [...roots], SUF: list('suffix'), WORDS: words };
       } catch (e) { console.warn('Supabase 로드 실패, 내장 데이터 사용:', e); return null; }
       finally { clearTimeout(timer); }
     }
