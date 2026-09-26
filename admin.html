@@ -124,10 +124,9 @@
     (async () => {
       const stats = document.getElementById('stats');
       try {
-        const [ms, ws, wm] = await Promise.all([get('morphemes', 'id'), get('words', 'id'), get('word_morphemes', 'position')]);
-        const wById = new Map(ws.map((w) => [w.id, w]));
+        const [ms, ws] = await Promise.all([get('morphemes', 'id'), get('words', 'id')]);
         const byM = new Map();
-        wm.forEach((x) => { (byM.get(x.morpheme_id) || byM.set(x.morpheme_id, []).get(x.morpheme_id)).push(wById.get(x.word_id)); });
+        ws.forEach((w) => (w.morpheme_ids || []).forEach((id) => { (byM.get(id) || byM.set(id, []).get(id)).push(w); }));
         ms.forEach((m) => rows[KIND[m.type]].push({
           text: m.text, label: SIGN[m.type](m.text), meaning: m.meaning_ko,
           words: (byM.get(m.id) || []).filter(Boolean).map((w) => ({ word: w.word, ko: w.meaning_ko }))

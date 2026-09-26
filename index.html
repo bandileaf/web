@@ -561,12 +561,12 @@
     async function loadFromSupabase() {
       const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
       try {
-        const [ms, ws, wm] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal), sbGet('word_morphemes', 'word_id,morpheme_id', ctl.signal)]);
+        const [ms, ws] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal)]);
         if (!ws.length || !ms.length) return null;
         const mById = new Map(ms.map((m) => [m.id, m]));
         const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko]);
         const words = ws.map((w) => {
-          const parts = wm.filter((x) => x.word_id === w.id).map((x) => mById.get(x.morpheme_id)).filter(Boolean);
+          const parts = (w.morpheme_ids || []).map((id) => mById.get(id)).filter(Boolean);
           const pick = (type) => (parts.find((m) => m.type === type) || {}).text || null;
           return { w: w.word, p: pick('prefix'), r: pick('root'), s: pick('suffix'), ko: w.meaning_ko };
         }).filter((w) => w.r);
