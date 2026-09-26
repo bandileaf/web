@@ -25,7 +25,7 @@ Use both sources. Never bulk-crawl; fetch only the words the user asked for.
 
 ## 2. Decide the decomposition
 
-- One prefix, one root, one suffix at most per word (the site reads one of each). Leave a slot empty if there is none.
+- Normally prefix + root + suffix (each optional). The graph shows one of each type per word; extra parts are stored but not drawn.
 - Store morpheme text **without hyphens** (`pre`, `ion`); the `type` column says prefix / root / suffix.
 - The root is the core morpheme: an English base (`use`, `happy`) or a bound Latin/Greek root (`dict`, `struct`, `port`), not a derived word. `prediction` = `pre` + `dict` + `ion`, not `predict` + `ion`.
 - If spelling changes (`create` -> `creat` + `ion`), store the base form and say so.
@@ -48,16 +48,20 @@ Base: `https://gdqotnfcarjgfghourdm.supabase.co/rest/v1`, key from env var `SUPA
 
 Headers: `apikey: $env:SUPABASE_SECRET_KEY`, `Content-Type: application/json`.
 
+Schema v2: there is no `word_morphemes` table. A word stores its ordered morpheme ids and actual spellings itself:
+- `words.morpheme_ids bigint[]` (e.g. `{3,15,24}`, shown as `3-15-24`), in word order: prefix, root, suffix.
+- `words.forms text[]` (e.g. `{pre,dict,ion}`): the actual spelling of each part. For a variant such as `ac` in accept, `morpheme_ids` holds the representative (`ad`) and `forms` holds `ac`.
+- `morphemes.variants text[]`: spelling variants of the representative `text` (`ad` -> `{ac,af,ap,ar,as,at}`). Before creating a morpheme, check `GET /morphemes?type=eq.<t>&variants=cs.{<x>}`; if `<x>` is a variant, reuse the representative.
+
 Order (skip rows that already exist):
 1. `GET /words?word=eq.<word>`: stop and report if it exists (ask whether to update).
 2. `POST /morphemes?on_conflict=type,text` with `Prefer: resolution=ignore-duplicates,return=representation`, body `[{"type":"prefix","text":"pre","meaning_ko":"이전"}]`. New morphemes only; look up existing ids with `GET /morphemes?type=eq.<t>&text=eq.<x>`.
-3. `POST /words` with `Prefer: return=representation`, body `{"word":"predict","meaning_ko":"예측하다"}`.
-4. `POST /word_morphemes` with body `[{"word_id":..,"morpheme_id":..,"position":1},...]`, position 1 = prefix, 2 = root, 3 = suffix (keep the order; numbers may skip when a slot is empty).
+3. `POST /words` with `Prefer: return=representation`, body `{"word":"predict","meaning_ko":"예측하다","morpheme_ids":[3,15],"forms":["pre","dict"]}`. More than three parts is allowed.
 
 Use `Invoke-RestMethod` in PowerShell with a UTF-8 body: `-Body ([Text.Encoding]::UTF8.GetBytes($json))`.
 
 ## 5. Verify
 
-Re-read `words`, `morphemes`, `word_morphemes` for the new rows and report counts and the final `pre + dict + ion` style breakdown. The site reads the DB live, so no code change or push is needed. Tell the user to refresh (`Ctrl+F5`) to see the node on the graph.
+Re-read `words` and `morphemes` for the new rows, check every id in `morpheme_ids` exists and `forms` has the same length, and report the final `pre + dict + ion` style breakdown (with the `3-15-24` ids). The site reads the DB live, so no code change or push is needed. Tell the user to refresh (`Ctrl+F5`) to see the node on the graph.
 
 Do not edit `db/schema.sql`; it is only the initial seed.
