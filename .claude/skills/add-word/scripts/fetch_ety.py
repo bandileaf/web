@@ -7,6 +7,7 @@ import sys, re, json, urllib.request, urllib.parse
 from sb import all_, req, Q
 
 ms = {m["id"]: m for m in all_("morphemes")}
+ws = {w["id"]: w for w in all_("words")}
 
 
 def ety(word):
@@ -26,10 +27,14 @@ def ety(word):
     return " || ".join(out)[:700] or "(none)"
 
 
+def current(w):
+    return "+".join((ms[int(p[1:])]["text"] if p[0] == "m" else ws[int(p[1:])]["word"]) for p in w["parts"]
+                    if int(p[1:]) in (ms if p[0] == "m" else ws)) or "(unsplit)"
+
+
 if sys.argv[1].isdigit():
-    todo = [w for w in all_("words") if not w["etym_checked_at"]][:int(sys.argv[1])]
+    todo = [w for w in ws.values() if not w["etym_checked_at"]][:int(sys.argv[1])]
 else:
-    todo = [w for a in sys.argv[1:] for w in req("GET", f"/words?word=eq.{Q(a)}") or [{"word": a, "meaning_ko": "?", "morpheme_ids": []}]]
+    todo = [w for a in sys.argv[1:] for w in req("GET", f"/words?word=eq.{Q(a)}") or [{"word": a, "meaning_ko": "?", "parts": []}]]
 for w in todo:
-    cur = "+".join(ms[i]["text"] for i in w["morpheme_ids"] if i in ms)
-    print(f"## {w['word']} [{cur}] {w['meaning_ko']}\n   {ety(w['word'])}")
+    print(f"## {w['word']} [{current(w)}] {w['meaning_ko']}\n   {ety(w['word'])}")
