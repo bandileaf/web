@@ -567,7 +567,10 @@
         const mById = new Map(ms.map((m) => [m.id, m]));
         const posText = (m) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']]
           .filter(([k]) => m[k]).map(([k, ab]) => ab + ' ' + m[k]).join(', ');
-        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, m.meaning_ko, posText(m)]);
+        // Roots keep their meaning only per part of speech (meaning_ko is for prefixes/suffixes);
+        // the short label / search text of a root is its first part-of-speech meaning.
+        const short = (m) => m.meaning_ko || m.noun || m.verb || m.adj || m.adv || '';
+        const list = (type) => ms.filter((m) => m.type === type).map((m) => [m.text, short(m), posText(m)]);
         const words = ws.map((w) => {
           const parts = (w.morpheme_ids || []).map((id) => mById.get(id)).filter(Boolean);
           const pick = (type) => (parts.find((m) => m.type === type) || {}).text || null;

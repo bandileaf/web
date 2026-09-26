@@ -130,7 +130,7 @@
         ms.forEach((m) => rows[KIND[m.type]].push({
           text: m.text, label: SIGN[m.type](m.text),
           // roots: "n. 서비스, v. 제공하다" when per-POS meanings exist, else the plain meaning
-          meaning: [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']].filter(([k]) => m[k]).map(([k, ab]) => ab + ' ' + m[k]).join(', ') || m.meaning_ko,
+          meaning: [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.']].filter(([k]) => m[k]).map(([k, ab]) => ab + ' ' + m[k]).join(', ') || m.meaning_ko || '',
           words: (byM.get(m.id) || []).filter(Boolean).map((w) => ({ word: w.word, ko: w.meaning_ko }))
         }));
         stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${ms.length}</b>개 · 단어 <b>${ws.length}</b>개`;
