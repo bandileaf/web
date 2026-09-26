@@ -231,20 +231,12 @@
       Object.keys(byId).forEach((k) => delete byId[k]); Object.keys(adj).forEach((k) => delete adj[k]);
       KIND = { p: PRE, r: ROOT, s: SUF };
 
-      // A word with no prefix/suffix of its own always has "root = the word
-      // itself" (every word needs a root row), but drawing that as a second
-      // dot connected to the word -- both with the same label -- only means
-      // something when OTHER words also share that root. Otherwise it's just
-      // a confusing self-connection, so treat it as a plain isolated word.
-      // Data model: a word's `parts` are [kind, text] pairs (p = prefix, r = root word, s = suffix).
-      // An atomic word has no parts; if other words use it as their root it points to that root node.
+      // Data model: a word's `parts` are [kind, text] pairs: p = prefix, s = suffix, r = bound root
+      // (dict, mit: not a word), w = another WORD used as a component (passion in compassion).
+      // A word used as a component is drawn once, as its own word node, and the words built from it
+      // link to that node directly. An atomic word has no parts and stays a plain (isolated) node.
       const partsOf = (wd) => wd.parts || [wd.p && ['p', wd.p], wd.r && ['r', wd.r], wd.s && ['s', wd.s]].filter(Boolean);
-      const rootUse = {};
-      WORDS.forEach((wd) => partsOf(wd).forEach(([k, t]) => { if (k === 'r') rootUse[t] = (rootUse[t] || 0) + 1; }));
-      WORDS.forEach((wd) => {
-        wd.ids = partsOf(wd).map(([k, t]) => k + ':' + t);
-        if (!wd.ids.length && rootUse[wd.w] > 0) wd.ids = ['r:' + wd.w];
-      });
+      WORDS.forEach((wd) => { wd.ids = partsOf(wd).map(([k, t]) => k + ':' + t); });
       const usedMorphemes = new Set();
       WORDS.forEach((wd) => wd.ids.forEach((id) => usedMorphemes.add(id)));
 
@@ -254,11 +246,12 @@
           if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
         });
       }
+      WORDS.forEach((wd) => addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300));   // all word nodes first
       WORDS.forEach((wd) => {
-        addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300);
+        wd.ids = wd.ids.filter((pid) => byId[pid]);
         wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
       });
-      nodes.forEach((n) => { n.r = n.type === 'w' ? 5 : 7 + adj[n.id].size * 1.7; });
+      nodes.forEach((n) => { n.r = n.type === 'w' ? 5 + Math.min(7, Math.max(0, adj[n.id].size - 2) * 0.8) : 7 + adj[n.id].size * 1.7; });
       // Large imports (thousands of words) need fewer initial-layout passes to
       // stay responsive; the grid-based repulsion in tick() keeps each pass cheap.
       const passes = nodes.length > 600 ? 260 : 520;
@@ -463,10 +456,11 @@
       flyTo(fitTarget()); renderUI();
     }
 
-    const decHTML = (wd) => wd.ids.map((id) => `<i class="${id[0]}">${partInfo(id).t}</i>`).join(' + ');
+    const kindOf = (id) => (id[0] === 'w' ? 'r' : id[0]);   // a word used as a component is styled like a root
+    const decHTML = (wd) => wd.ids.map((id) => `<i class="${kindOf(id)}">${partInfo(id).t}</i>`).join(' + ');
     const liHTML = (wd, i = 0) =>
       `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
-    const partChip = (id, on) => { const { k, t } = partInfo(id); return `<button class="chip ${k}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
+    const partChip = (id, on) => { const { t } = partInfo(id); return `<button class="chip ${kindOf(id)}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
 
     function renderUI() {
       // 검색 결과 스트립
@@ -487,7 +481,9 @@
         panel.innerHTML = `<h3><span class="chip ${k}">${SIGN[k](t)}</span></h3><p class="sub">${KIND_KO[k]} · ${ko} · 연결된 단어 ${list.length}개</p>` + list.map(liHTML).join('');
       } else {
         const wd = wordOf(sel);
+        const users = WORDS.filter((w) => w !== wd && w.ids.includes(sel));   // words built from this word
         panel.innerHTML = `<h3>${wd.w}</h3><p class="sub">${wd.ko} · 같은 조각을 쓰는 다른 단어</p>` +
+          (users.length ? `<div class="group"><div class="gh">이 단어를 조각으로 쓰는 단어 ${users.length}개</div>${users.map(liHTML).join('')}</div>` : '') +
           wd.ids.map((pid) => {
             const { k, t, ko } = partInfo(pid), others = WORDS.filter((w) => w !== wd && w.ids.includes(pid));
             return `<div class="group"><div class="gh">${partChip(pid)} ${ko}</div>` +
@@ -580,7 +576,11 @@
           (w.parts || []).forEach((p) => {
             const id = Number(p.slice(1));
             if (p[0] === 'm') { const m = mById.get(id); if (m) parts.push([m.type === 'prefix' ? 'p' : 's', m.text]); }
-            else { const r = wById.get(id); if (r) { parts.push(['r', r.word]); roots.set(r.word, koOf(r)); } }
+            else {
+              const r = wById.get(id); if (!r) return;
+              if (r.kind === 'word') parts.push(['w', r.word]);                       // a real word: its own node
+              else { parts.push(['r', r.word]); roots.set(r.word, koOf(r)); }        // bound root (dict, mit)
+            }
           });
           return { w: w.word, parts, ko: koOf(w) };
         });
