@@ -11,6 +11,10 @@ Item: {"word","action":"keep"}                      -> unsplittable; parts = []
    (words.noun/verb/adj/adv/prep/conj; several senses in one column separated by " / "). Required to create a
    NEW word; on an existing word it overwrites only the given columns.
    "root_pos": same shape, required when the root is not in words yet (it is created as an unchecked word).
+   or {"word","action":"split","components":[["word","ice"],["word","berg"]],"component_pos":{"berg":{"noun":"빙산"}},
+       "component_meaning":{"ly":"~하게"}}   -> free-form parts in order: ["prefix"|"suffix"|"word", spelling]
+   (compounds and words with several roots; component_pos is required for a component word not in words yet,
+   component_meaning for a new prefix/suffix).
 Prefix/suffix texts are the ACTUAL spelling; a text listed in morphemes.variants maps to its representative
 (the spelling stays in words.forms). The root is a WORD, looked up in words. Words have no meaning_ko any more.
 Every processed word gets etym_checked_at.
@@ -64,6 +68,21 @@ def apply_one(item, force):
         req("PATCH", f"/words?id=eq.{w['id']}", patch, "return=minimal")
         return "keep"
     parts, forms = [], []
+    if item.get("components"):                                       # free-form: compounds, several roots, ...
+        for typ, text in item["components"]:                         # typ: prefix | suffix | word (a root or a word)
+            if typ == "word":
+                rid = word_id(text, (item.get("component_pos") or {}).get(text))
+                if rid == w["id"]: return "ERROR: component equals the word itself"
+                parts.append(f"w{rid}")
+            else:
+                parts.append(f"m{morpheme_id(typ, text, (item.get('component_meaning') or {}).get(text, ''))}")
+            forms.append(text)
+        patch.update(parts=parts, forms=forms)
+        req("PATCH", f"/words?id=eq.{w['id']}", patch, "return=minimal")
+        for old in set(w["parts"]) - set(parts):
+            if old[0] == "m" and not one(f"/words?parts=cs.{{{old}}}&select=id"):
+                req("DELETE", f"/morphemes?id=eq.{old[1:]}", prefer="return=minimal")
+        return "fixed"
     if item.get("prefix"):
         parts.append(f"m{morpheme_id('prefix', item['prefix'], item.get('prefix_meaning', ''))}"); forms.append(item["prefix"])
     rid = word_id(item["root"], item.get("root_pos"))
