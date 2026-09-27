@@ -31,7 +31,7 @@
     }
     a, button { font: inherit; color: inherit; }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
-    .p { --c: var(--pre); } .r { --c: var(--root); } .s { --c: var(--suf); }
+    .p { --c: var(--pre); } .r { --c: var(--root); } .s { --c: var(--suf); } details.k { --c: var(--text); }   /* k = unsplit word nobody uses (black) */
 
     .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 26px 0 18px; }
     .top h1 { font-size: 1.5rem; letter-spacing: -0.03em; }
@@ -113,10 +113,12 @@
       for (const k of ['p', 'r', 's']) {
         const all = rows[k];
         const list = all.filter((m) => !f || m.text.toLowerCase().includes(f) || m.meaning.includes(f) || m.words.some((w) => w.word.toLowerCase().includes(f) || w.ko.includes(f)));
-        document.getElementById('c-' + k).textContent = f ? `${list.length} / ${all.length}` : `${all.length}개`;
+        const black = all.filter((m) => m.black).length;              // roots column: green = used by other words, black = unsplit and unused
+        const total = k === 'r' ? `${all.length - black}개 + 검정 ${black}개` : `${all.length}개`;
+        document.getElementById('c-' + k).textContent = f ? `${list.length} / ${all.length}` : total;
         document.getElementById('l-' + k).innerHTML = list.length ? list.map((m) =>
-          `<details${f && list.length <= 6 ? ' open' : ''}><summary><span class="t">${esc(m.label)}</span><span class="m">${esc(m.meaning)}</span><span class="n">${m.words.length}</span></summary>` +
-          `<div class="words">${m.words.length ? m.words.map((w) => `<span>${esc(w.word)}<em>${esc(w.ko)}</em></span>`).join('') : '<span>연결된 단어 없음</span>'}</div></details>`
+          `<details${m.black ? ' class="k"' : ''}${f && list.length <= 6 ? ' open' : ''}><summary><span class="t">${esc(m.label)}</span><span class="m">${esc(m.meaning)}</span>${m.black ? '' : `<span class="n">${m.words.length}</span>`}</summary>` +
+          `<div class="words">${m.words.length ? m.words.map((w) => `<span>${esc(w.word)}<em>${esc(w.ko)}</em></span>`).join('') : m.black ? '<span>분해되지 않고 다른 단어에도 쓰이지 않는 단어</span>' : '<span>연결된 단어 없음</span>'}</div></details>`
         ).join('') : '<p class="empty">결과가 없습니다</p>';
       }
     }
@@ -141,8 +143,11 @@
           const r = wById.get(id); if (!r || (r.parts || []).length) return;   // roots = words that cannot be split (parts = [])
           rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r), words: asWords(list) });
         });
-        rows.r.sort((a, b) => a.text.localeCompare(b.text));
-        stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 조각 <b>${rows.p.length + rows.r.length + rows.s.length}</b>개 · 단어 <b>${ws.length}</b>개`;
+        // unsplit words that no other word uses: also root entries, shown in black after the green ones
+        ws.filter((w) => !(w.parts || []).length && !byW.has(w.id))
+          .forEach((w) => rows.r.push({ text: w.word, label: w.word, meaning: posText(w), words: [], black: true }));
+        rows.r.sort((a, b) => (a.black ? 1 : 0) - (b.black ? 1 : 0) || a.text.localeCompare(b.text));
+        stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 접사 <b>${rows.p.length + rows.s.length}</b>개 · 어근 <b>${rows.r.length}</b>개(검정 ${rows.r.filter((m) => m.black).length}) · 단어 <b>${ws.length}</b>개`;
         render();
       } catch (e) {
         console.warn(e);
