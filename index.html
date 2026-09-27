@@ -175,7 +175,7 @@
       <div class="card graph">
         <canvas id="cv" aria-label="단어 조각 네트워크 그래프"></canvas>
         <div class="tools"><span class="hintt">드래그 이동 · 휠 확대</span><span class="dbs" id="dbs"></span><button class="tbtn" id="reset" type="button">전체 보기</button></div>
-        <div class="legend">
+        <div class="legend" id="legend">
           <span class="p"><i></i>접두사</span><span class="r"><i></i>어근</span><span class="s"><i></i>접미사</span><span class="w"><i></i>단어</span>
         </div>
       </div>
@@ -233,38 +233,65 @@
       Object.keys(byId).forEach((k) => delete byId[k]); Object.keys(adj).forEach((k) => delete adj[k]);
       KIND = { p: PRE, r: ROOT, s: SUF };
 
-      // Data model: a word's `parts` are [kind, text] pairs: p = prefix, s = suffix, r = bound root
-      // (dict, mit: not a word), w = another WORD used as a component (passion in compassion).
-      // A word used as a component is drawn once, as its own word node, and the words built from it
-      // link to that node directly. An atomic word has no parts and stays a plain (isolated) node.
+      // Data model: a word's `parts` are [kind, text] pairs: p = prefix, s = suffix, r = fallback root,
+      // w = a WORD used as a component (bever, passion). A word that can be split is NOT drawn: its pieces are
+      // linked to each other in order (beverage -> bever - age). A component that is itself split is expanded
+      // (compassion -> con - pass - ion). What stays as a node: prefixes, suffixes, and words that cannot be split;
+      // the unsplit words other words are built from are the roots (green), the rest are plain words (black).
       const partsOf = (wd) => wd.parts || [wd.p && ['p', wd.p], wd.r && ['r', wd.r], wd.s && ['s', wd.s]].filter(Boolean);
-      WORDS.forEach((wd) => { wd.ids = partsOf(wd).map(([k, t]) => k + ':' + t); });
-      const usedMorphemes = new Set();
-      WORDS.forEach((wd) => wd.ids.forEach((id) => usedMorphemes.add(id)));
+      wordMap = new Map(WORDS.map((wd) => ['w:' + wd.w, wd]));
+      const atomsOf = (wd, seen) => {
+        seen = new Set(seen).add(wd);
+        const out = [];
+        for (const [k, t] of partsOf(wd)) {
+          const sub = k === 'w' ? wordMap.get('w:' + t) : null;
+          if (sub && partsOf(sub).length && !seen.has(sub)) out.push(...atomsOf(sub, seen));
+          else out.push(k + ':' + t);
+        }
+        return out.filter((id, i) => id !== out[i - 1]);
+      };
+      WORDS.forEach((wd) => { wd.hidden = partsOf(wd).length > 0; wd.ids = atomsOf(wd, new Set()); });
+      const used = new Set();
+      WORDS.forEach((wd) => wd.ids.forEach((id) => used.add(id)));
 
       for (const k of ['p', 'r', 's']) {
         KIND[k].forEach(([t, ko]) => {
           const id = k + ':' + t;
-          if (usedMorphemes.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
+          if (used.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
         });
       }
-      WORDS.forEach((wd) => addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300));   // all word nodes first
+      WORDS.forEach((wd) => { if (!wd.hidden) addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300); });
+      WORDS.forEach((wd) => { wd.ids = wd.ids.filter((id) => byId[id]); });
+      const seenLink = new Set(), usedAsAtom = new Set();
       WORDS.forEach((wd) => {
-        wd.ids = wd.ids.filter((pid) => byId[pid]);
-        wd.ids.forEach((pid) => { links.push([byId['w:' + wd.w], byId[pid]]); adj['w:' + wd.w].add(pid); adj[pid].add('w:' + wd.w); });
+        if (!wd.hidden) return;
+        wd.ids.forEach((id) => usedAsAtom.add(id));
+        for (let i = 1; i < wd.ids.length; i++) {
+          const a = wd.ids[i - 1], b = wd.ids[i], key = a < b ? a + '|' + b : b + '|' + a;
+          if (a === b || seenLink.has(key)) continue;
+          seenLink.add(key); links.push([byId[a], byId[b]]); adj[a].add(b); adj[b].add(a);
+        }
       });
-      // A root is a word that cannot be split further (no parts) and is used by other words.
-      const usedAsPart = new Set(), splitWords = new Set();
-      WORDS.forEach((wd) => { if (wd.ids.length) splitWords.add('w:' + wd.w); wd.ids.forEach((id) => { if (id[0] === 'w') usedAsPart.add(id); }); });
-      nodes.forEach((n) => { n.root = n.type === 'w' && usedAsPart.has(n.id) && !splitWords.has(n.id); });
+      nodes.forEach((n) => { n.root = n.type === 'w' && usedAsAtom.has(n.id); });
       nodes.forEach((n) => { n.r = !isPiece(n) ? 5 + Math.min(7, Math.max(0, adj[n.id].size - 2) * 0.8) : 7 + adj[n.id].size * 1.7; });
+      renderLegend();
       // Large imports (thousands of words) need fewer initial-layout passes to
       // stay responsive; the grid-based repulsion in tick() keeps each pass cheap.
       const passes = nodes.length > 600 ? 260 : 520;
       for (let i = 0; i < passes; i++) tick(Math.max(0.04, 1 - i / (passes * 0.73)));
       alpha = 0.03;
     }
-    const wordOf = (id) => WORDS.find((w) => 'w:' + w.w === id);
+    let wordMap = new Map();
+    const wordOf = (id) => wordMap.get(id);
+    // Legend with the distribution: how many roots (green) vs plain unsplit words (black), and how many split words are hidden.
+    function renderLegend() {
+      const c = { p: 0, r: 0, s: 0, w: 0 };
+      nodes.forEach((n) => { c[colorKey(n)]++; });
+      const hidden = WORDS.filter((w) => w.hidden).length;
+      document.getElementById('legend').innerHTML =
+        `<span class="p"><i></i>접두사 ${c.p}</span><span class="r"><i></i>어근 ${c.r}</span><span class="s"><i></i>접미사 ${c.s}</span>` +
+        `<span class="w"><i></i>분해 안 되는 단어 ${c.w}</span><span>분해되는 단어 ${hidden}개는 숨김</span>`;
+    }
     const partInfo = (id) => { const [k, t] = id.split(':'); return { k, t, ko: byId[id].ko }; };
 
     // ── 물리 시뮬레이션 (force-directed) ───────────────────
@@ -350,11 +377,12 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
       const focusId = sel || hover;
-      const F = focusId ? new Set([focusId, ...adj[focusId]]) : null;
+      const hw = sel && !byId[sel] ? wordOf(sel) : null;             // a hidden (split) word is selected: light up its pieces
+      const F = hw ? new Set(hw.ids) : focusId ? new Set([focusId, ...adj[focusId]]) : null;
 
       ctx.lineCap = 'round';
       for (const [A, B] of links) {
-        const on = F && (A.id === focusId || B.id === focusId);
+        const on = F && (hw ? F.has(A.id) && F.has(B.id) : A.id === focusId || B.id === focusId);
         const [ax, ay] = toScreen(A), [bx, by] = toScreen(B);
         ctx.globalAlpha = !F ? 0.38 : on ? 1 : 0.06;
         ctx.strokeStyle = on ? C[colorKey(A.type === 'w' ? B : A)] : C.edge;
@@ -453,8 +481,17 @@
 
     function select(id) {
       sel = id;
-      if (id.startsWith('w:')) { stripWord = id; input.value = byId[id].label; }
-      flyTo({ id, k: 1.7 });
+      if (id.startsWith('w:')) { stripWord = id; input.value = byId[id] ? byId[id].label : wordOf(id).w; }
+      if (byId[id]) flyTo({ id, k: 1.7 });
+      else {                                                        // hidden word: fly to the middle of its pieces
+        const ns = wordOf(id).ids.map((i) => byId[i]).filter(Boolean);
+        if (ns.length) {
+          const xs = ns.map((n) => n.x), ys = ns.map((n) => n.y);
+          const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+          flyTo({ x: (Math.max(...xs) + Math.min(...xs)) / 2, y: (Math.max(...ys) + Math.min(...ys)) / 2,
+                  k: Math.max(0.3, Math.min(1.7, W / (w + 220), H / (h + 220))) });
+        }
+      }
       renderUI();
     }
     function clearSel() {
@@ -481,7 +518,7 @@
       // 오른쪽 목록 패널
       if (!sel) {
         panel.innerHTML = `<h3>탐색</h3><p class="sub">그래프의 노드를 클릭하거나 위에서 단어를 검색해 보세요.</p>` +
-          `<p class="empty">색이 있는 큰 노드는 <b style="color:var(--pre)">접두사</b>, <b style="color:var(--root)">어근</b>, <b style="color:var(--suf)">접미사</b> 이고, 작은 점은 단어입니다. 선은 단어가 어떤 조각으로 이루어졌는지를 나타냅니다.</p>`;
+          `<p class="empty">색이 있는 큰 노드는 <b style="color:var(--pre)">접두사</b>, <b style="color:var(--root)">어근</b>, <b style="color:var(--suf)">접미사</b> 이고, 검정 점은 더 이상 분해되지 않는 단어입니다. 분해되는 단어(예: beverage)는 그래프에서 숨기고 조각(bever - age)을 바로 이어 보여 줍니다. 단어를 검색하면 그 조각들이 강조됩니다.</p>`;
       } else if (sel[0] !== 'w') {
         const { k, t, ko } = partInfo(sel), list = WORDS.filter((w) => w.ids.includes(sel));
         panel.innerHTML = `<h3><span class="chip ${k}">${SIGN[k](t)}</span></h3><p class="sub">${KIND_KO[k]} · ${ko} · 연결된 단어 ${list.length}개</p>` + list.map(liHTML).join('');
@@ -518,7 +555,7 @@
       const q = input.value;
       items = search(q); idx = items.length ? 0 : -1;
       sug.innerHTML = items.length ? items.map((id, i) => {
-        const n = byId[id], wd = n.type === 'w' ? wordOf(id) : null;
+        const wd = id.startsWith('w:') ? wordOf(id) : null, n = byId[id] || { type: 'w', label: wd.w, ko: wd.ko };
         return `<li role="option" data-sid="${id}" class="${i === idx ? 'act' : ''} ${n.type}"><b>${n.label}</b><span class="dec">${wd ? wd.ids.map((p) => partInfo(p).t).join(' + ') : KIND_KO[n.type]}</span><em>${n.ko}</em></li>` ;
       }).join('') : (q.trim() ? `<li class="none">검색 결과가 없습니다</li>` : '');
       const open = q.trim() !== '';
