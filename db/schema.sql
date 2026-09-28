@@ -30,23 +30,36 @@ create table if not exists words (
   parts  text[] not null default '{}',
   forms  text[] not null default '{}',        -- actual spelling of each part, same order as parts ({com,passion})
   etym_checked_at timestamptz,                -- when the etymology was verified (null = not yet)
-  importance smallint check (importance between 1 and 5)  -- daily-use rank, 1=most common .. 5=rarest; Oxford 5000
+  importance smallint check (importance between 1 and 5),  -- daily-use rank, 1=most common .. 5=rarest; Oxford 5000
                                                             -- CEFR first, else the BNC/COCA 25k band; null = in
                                                             -- neither list, e.g. a bound root (see add-word skill)
+  -- thematic groups this word belongs to (관계도), unordered: 'id3' = topics.id 3. A word can be in several topics.
+  topics text[] not null default '{}'
 );
 
-create index if not exists words_parts_gin on words using gin (parts);   -- which words use w7: parts=cs.{w7}
+-- A thematic group of words for memorization (관계도), independent of etymology, e.g. '남녀관계'.
+create table if not exists topics (
+  id    bigint generated always as identity primary key,
+  title text not null unique
+);
+
+create index if not exists words_parts_gin  on words using gin (parts);    -- which words use w7: parts=cs.{w7}
+create index if not exists words_topics_gin on words using gin (topics);   -- which words are in id3: topics=cs.{id3}
 
 -- Public read-only access for the browser (anon key). Writes only via the service role (secret key).
 alter table morphemes enable row level security;
 alter table words     enable row level security;
+alter table topics    enable row level security;
 
 drop policy if exists "public read" on morphemes;
 drop policy if exists "public read" on words;
+drop policy if exists "public read" on topics;
 create policy "public read" on morphemes for select to anon, authenticated using (true);
 create policy "public read" on words     for select to anon, authenticated using (true);
+create policy "public read" on topics    for select to anon, authenticated using (true);
 
 -- Bring a database created with the earlier schema up to this form (no-ops on a fresh one).
 alter table morphemes drop constraint if exists morphemes_type_check;
 alter table morphemes add  constraint morphemes_type_check check (type in ('prefix', 'suffix'));
 alter table words add column if not exists importance smallint check (importance between 1 and 5);
+alter table words add column if not exists topics text[] not null default '{}';
