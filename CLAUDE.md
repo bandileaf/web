@@ -1,5 +1,10 @@
 # CLAUDE.md
 
+## 목적
+
+- 미국 영어를 쉽게 외우기 위한, 고등학교 수준의 사전이다. 대상 단어 범위, 우선순위(`words.importance`), 새 기능(예: 주제별 묶음)은 전부 이 목적 기준으로 판단한다.
+- 어원(접두사·어근·접미사) 분해가 1차 암기 보조 수단이고, 주제별 묶음(관계도 등) 같은 의미 기반 그룹도 같은 목적의 2차 수단이다. 어원 분해가 안 되는 고유/합성 단어(date, couple 등)도 고등학교 수준에서 중요하면 등록 대상이다.
+
 - This is a static HTML web service deployed with GitHub Pages.
 - Changes are verified on the deployed site, so after editing files, commit and **push immediately**. (Overrides the global rule.)
 - Still review the push for secrets and personal data first. The repo is public.
