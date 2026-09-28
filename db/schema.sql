@@ -30,7 +30,9 @@ create table if not exists words (
   parts  text[] not null default '{}',
   forms  text[] not null default '{}',        -- actual spelling of each part, same order as parts ({com,passion})
   etym_checked_at timestamptz,                -- when the etymology was verified (null = not yet)
-  importance smallint check (importance between 1 and 5)  -- daily-use rank from Oxford 5000 CEFR (1=A1 common .. 5=C1 rare, null = not in the list, e.g. a bound root)
+  importance smallint check (importance between 1 and 5)  -- daily-use rank, 1=most common .. 5=rarest; Oxford 5000
+                                                            -- CEFR first, else the BNC/COCA 25k band; null = in
+                                                            -- neither list, e.g. a bound root (see add-word skill)
 );
 
 create index if not exists words_parts_gin on words using gin (parts);   -- which words use w7: parts=cs.{w7}

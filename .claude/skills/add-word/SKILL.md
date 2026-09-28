@@ -12,7 +12,7 @@ Talk to the user in Korean. Never print the secret key.
 
 Two tables. **Everything that is a word or a root lives in `words`; `morphemes` holds only prefixes and suffixes.**
 
-- `words`: `word` (unique), `noun` / `verb` / `adj` / `adv` / `prep` / `conj` (the meaning as that part of speech, null = not that POS; several senses in one column are separated by ` / `; the site shows `n. 서비스, v. 제공하다`; there is no other meaning column on words), `parts text[]`, `forms text[]`, `etym_checked_at`.
+- `words`: `word` (unique), `noun` / `verb` / `adj` / `adv` / `prep` / `conj` (the meaning as that part of speech, null = not that POS; several senses in one column are separated by ` / `; the site shows `n. 서비스, v. 제공하다`; there is no other meaning column on words), `parts text[]`, `forms text[]`, `etym_checked_at`, `importance` (1-5 daily-use rank, 1 = most common, null = not in either source list; see step 1).
 - `words.parts`: the ordered components of the word, each tagged with its table: `m12` = `morphemes.id` 12 (a prefix or suffix), `w7` = `words.id` 7 (a root or another word). **`parts = []` means the word cannot be split, i.e. it is a root.** A root is simply an unsplit word that other words use (`break`, `use`, `dict`, `mit`). A word used as a component is drawn once in the graph.
   - `prediction` = `{m(pre), w(dict), m(ion)}`; `compassion` = `{m(con), w(passion)}`; `benefit` = `{}`.
 - `words.forms`: the actual spelling of each part, same order as `parts` (`{com,passion}` for a variant `com` of the representative prefix `con`).
@@ -31,6 +31,7 @@ Run from `.claude/skills/add-word/scripts/` (use Python, not PowerShell, for Kor
 | `apply_fixes.py batch.json [--force]` | apply decisions; `keep` = unsplit (`parts = []`) and stamps `etym_checked_at`; `split` writes `parts` / `forms`, looks the root up in `words` (creates it if missing), maps prefix/suffix variants to representatives, deletes orphaned prefixes/suffixes. A NEW word needs `pos` (its meanings per part of speech); a root that is not in `words` yet needs `root_pos`. |
 | `verify_all.py` | integrity + spelling check (BROKEN / FORM? / CLOSE / MISMATCH), root count, unchecked count. Run after every batch; fix anything you introduced. |
 | `merge_variants.py prefix\|suffix rep "v1 v2" [--apply]` | merge spelling variants (ac/af/ap -> ad) into one representative; dry run by default |
+| `importance.py word ...` | prints the 1-5 daily-use rank for each word (offline, from `data/`); `apply_fixes.py` calls this automatically for every new word, no manual step needed |
 
 Batch item: `{"word":"react","action":"keep"}` or `{"word":"react","action":"split","prefix":"re","prefix_meaning":"다시","root":"act","suffix":null,"pos":{"verb":"반응하다"}}` (`root_pos` only when `act` is not in `words` yet). Prefix/suffix/root texts are the **actual spelling** (`ac`, not `ad`); the script maps variants to the representative.
 

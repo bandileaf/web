@@ -21,6 +21,7 @@ Every processed word gets etym_checked_at.
 Words that already have etym_checked_at are skipped unless --force."""
 import sys, json, datetime
 from sb import req, one, Q
+from importance import importance_of
 
 POS = ("noun", "verb", "adj", "adv", "prep", "conj")
 
@@ -29,7 +30,7 @@ def insert_word(word, pos):
     """Create an unchecked word whose meaning is given per part of speech (pos = {"noun": "서비스", ...})."""
     pos = {k: v for k, v in (pos or {}).items() if k in POS and v}
     if not pos: raise RuntimeError(f"new word '{word}' needs a part-of-speech meaning (pos / root_pos)")
-    row = {"word": word, **pos}
+    row = {"word": word, "importance": importance_of(word), **pos}
     try:
         req("POST", "/words", row, "return=minimal")
     except RuntimeError as e:
