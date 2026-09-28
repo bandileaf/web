@@ -93,8 +93,10 @@
     .strip { max-width: 640px; margin: 18px auto 0; padding: 18px 20px; display: none; }
     .strip.show { display: block; animation: rise .35s ease; }
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    .eq { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
+    .eq { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 10px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
     .eq .plus { color: var(--muted); font-weight: 300; }
+    .eq .pc { display: inline-flex; align-items: baseline; gap: 6px; }
+    .eq .pm { font-size: .5em; font-weight: 400; font-style: normal; color: var(--muted); letter-spacing: normal; }
     .chip {
       padding: 2px 16px 4px; border-radius: 14px; color: var(--c); font-weight: 700; font-size: inherit;
       background: color-mix(in srgb, var(--c) 14%, transparent);
@@ -105,6 +107,7 @@
     .chip.on { background: color-mix(in srgb, var(--c) 32%, transparent); border-color: var(--c); }
     .res { margin-top: 8px; font-size: 1.05rem; }
     .res span { color: var(--muted); }
+    .res .rko { display: block; margin-top: 4px; padding-left: 2px; font-size: .82rem; }
 
     /* ── 그래프 + 패널 ── */
     .stage { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 22px; }
@@ -528,14 +531,15 @@
     const liHTML = (wd, i = 0) =>
       `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
     const partChip = (id, on) => { const { t } = partInfo(id); return `<button class="chip ${kindOf(id)}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
+    const eqPiece = (id, on) => `<span class="pc">${partChip(id, on)}<i class="pm">(${partInfo(id).ko})</i></span>`;
 
     function renderUI() {
-      // 검색 결과 스트립
+      // 검색 결과 스트립: marry (v. 결혼하다) + age (행위 결과) = marriage / n. 결혼
       if (stripWord) {
         const wd = wordOf(stripWord);
         strip.innerHTML =
-          `<div class="eq">${wd.ids.map((id) => partChip(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
-          `<div class="res"><span>=</span> <b>${wd.w}</b> <span>· ${wd.ko}</span></div>`;
+          `<div class="eq">${wd.ids.map((id) => eqPiece(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
+          `<div class="res"><span>=</span> <b>${wd.w}</b><span class="rko">${wd.ko}</span></div>`;
         strip.classList.add('show');
       } else strip.classList.remove('show');
 
