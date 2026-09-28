@@ -129,6 +129,7 @@
     .panel { padding: 20px; height: clamp(440px, 70vh, 740px); overflow: auto; }
     .panel h3 { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 4px; }
     .panel h3 .chip { font-size: 1.15rem; }
+    .imp { font-size: .55em; color: var(--suf); vertical-align: top; position: relative; top: -.3em; letter-spacing: -1px; }
     .sub { color: var(--muted); font-size: .88rem; margin-bottom: 14px; }
     .group { margin-top: 18px; }
     .group > .gh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .84rem; color: var(--muted); }
@@ -543,8 +544,9 @@
 
     const kindOf = (id) => (id[0] === 'w' ? 'r' : id[0]);   // a word used as a component is styled like a root
     const decHTML = (wd) => wd.ids.map((id) => `<i class="${kindOf(id)}">${partInfo(id).t}</i>`).join(' + ');
+    const stars = (imp) => imp ? `<span class="imp">${'★'.repeat(6 - imp)}</span>` : '';   // importance 1(흔함)..5(드묾) -> 별 5..1개
     const liHTML = (wd, i = 0) =>
-      `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
+      `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}${stars(wd.importance)}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
     const partChip = (id, on) => { const { t } = partInfo(id); return `<button class="chip ${kindOf(id)}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
     const eqPiece = (id, on) => `<span class="pc">${partChip(id, on)}<i class="pm">${partInfo(id).ko}</i></span>`;
 
@@ -569,7 +571,7 @@
         const wd = wordOf(sel);
         const users = WORDS.filter((w) => w !== wd && w.ids.includes(sel));   // words built from this word
         const hasList = users.length || wd.ids.length;                       // nothing to relate: skip the section entirely
-        panel.innerHTML = `<h3>${wd.w}</h3><p class="sub">${wd.ko}${hasList ? ' · 같은 조각을 쓰는 다른 단어' : ''}</p>` +
+        panel.innerHTML = `<h3>${wd.w}${stars(wd.importance)}</h3><p class="sub">${wd.ko}${hasList ? ' · 같은 조각을 쓰는 다른 단어' : ''}</p>` +
           (users.length ? `<div class="group"><div class="gh">이 단어를 조각으로 쓰는 단어 ${users.length}개</div>${users.map(liHTML).join('')}</div>` : '') +
           wd.ids.map((pid) => {
             const { k, t, ko } = partInfo(pid), others = WORDS.filter((w) => w !== wd && w.ids.includes(pid));
