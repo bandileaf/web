@@ -129,7 +129,7 @@
     .panel { padding: 20px; height: clamp(440px, 70vh, 740px); overflow: auto; }
     .panel h3 { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; letter-spacing: -0.02em; margin-bottom: 4px; }
     .panel h3 .chip { font-size: 1.15rem; }
-    .imp { font-size: .55em; color: var(--suf); vertical-align: top; position: relative; top: -.3em; letter-spacing: -1px; }
+    .imp { font-size: .45em; color: var(--suf); vertical-align: top; position: relative; top: -.3em; letter-spacing: -1px; }
     .sub { color: var(--muted); font-size: .88rem; margin-bottom: 14px; }
     .group { margin-top: 18px; }
     .group > .gh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .84rem; color: var(--muted); }
@@ -556,7 +556,7 @@
         const wd = wordOf(stripWord);
         strip.innerHTML =
           `<div class="eq">${wd.ids.map((id) => eqPiece(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
-          `<div class="res"><span>=</span> <b>${wd.w}</b><span class="rko">${wd.ko}</span></div>`;
+          `<div class="res"><span>=</span> <b>${wd.w}${stars(wd.importance)}</b><span class="rko">${wd.ko}</span></div>`;
         strip.classList.add('show');
       } else strip.classList.remove('show');
 
