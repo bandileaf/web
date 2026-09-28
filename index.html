@@ -502,6 +502,14 @@
     }
     renderExamples();
 
+    // ── URL과 상태 동기화 (새로고침해도 검색이 유지되도록, ?marriage 형태) ──
+    const updateUrl = () => { try { history.replaceState(null, '', stripWord ? '?' + encodeURIComponent(stripWord.slice(2)) : location.pathname); } catch {} };
+    function restoreFromUrl() {
+      const raw = decodeURIComponent(location.search.slice(1)).trim(); if (!raw) return;
+      const hit = WORDS.find((w) => w.w.toLowerCase() === raw.toLowerCase());
+      if (hit) select('w:' + hit.w);
+    }
+
     function select(id) {
       sel = id;
       if (id.startsWith('w:')) { stripWord = id; input.value = byId[id] ? byId[id].label : wordOf(id).w; }
@@ -515,7 +523,7 @@
                   k: Math.max(0.3, Math.min(1.7, W / (w + 220), H / (h + 220))) });
         }
       }
-      renderUI();
+      renderUI(); updateUrl();
     }
     function selectFromSearch(id) {          // a word chosen via the search box also joins "최근 검색"
       if (id.startsWith('w:')) addRecent(id.slice(2));
@@ -523,7 +531,7 @@
     }
     function clearSel() {
       sel = null; stripWord = null; userMoved = false; input.value = '';
-      flyTo(fitTarget()); renderUI();
+      flyTo(fitTarget()); renderUI(); updateUrl();
     }
 
     const kindOf = (id) => (id[0] === 'w' ? 'r' : id[0]);   // a word used as a component is styled like a root
@@ -659,13 +667,14 @@
     const dbs = document.getElementById('dbs');
     const setStatus = (ok, text) => { dbs.className = 'dbs ' + (ok ? 'ok' : 'off'); dbs.textContent = text; };
 
-    buildGraph(); renderUI(); setStatus(false, '연결 중…');
+    buildGraph(); renderUI(); setStatus(false, '연결 중…'); restoreFromUrl();
     loadFromSupabase().then((d) => {
       if (!d) { setStatus(false, '내장 데이터'); return; }
       ({ PRE, ROOT, SUF, WORDS } = d);
       sel = null; stripWord = null; hover = null; input.value = '';
       buildGraph(); Object.assign(cam, fitTarget()); anim = null; renderUI();
       setStatus(true, 'DB 연결됨 · 단어 ' + WORDS.length + '개');
+      restoreFromUrl();                        // ?marriage in the URL survives a reload / can be shared as a link
     });
   </script>
 </body>
