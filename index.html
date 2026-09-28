@@ -357,7 +357,7 @@
     const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d');
     let W = 0, H = 0, dpr = 1;
     const cam = { x: 0, y: 0, k: 1 };
-    let anim = null, sel = null, hover = null, stripWord = null, userMoved = false, C = {};
+    let anim = null, sel = null, hover = null, stripWord = null, userMoved = false, topicView = null, C = {};
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function readColors() {
@@ -391,9 +391,8 @@
     function draw(now) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-      const gsel = sel && !sel.startsWith('topic:') ? sel : null;    // 'topic:marriage' isn't a graph node: don't touch the graph
-      const focusId = gsel || hover;
-      const hw = gsel && !byId[gsel] ? wordOf(gsel) : null;          // a hidden (split) word is selected: light up its pieces
+      const focusId = sel || hover;
+      const hw = sel && !byId[sel] ? wordOf(sel) : null;             // a hidden (split) word is selected: light up its pieces
       const F = hw ? new Set(hw.ids) : focusId ? new Set([focusId, ...adj[focusId]]) : null;
 
       ctx.lineCap = 'round';
@@ -412,7 +411,7 @@
         ctx.globalAlpha = lit ? 1 : 0.13;
         ctx.fillStyle = C[colorKey(n)];
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
-        if (n.id === gsel) {
+        if (n.id === sel) {
           ctx.globalAlpha = 0.9; ctx.strokeStyle = C[colorKey(n)]; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(x, y, r + 6 + Math.sin(now / 260) * 2.2, 0, 6.2832); ctx.stroke();
         }
@@ -422,7 +421,7 @@
           ctx.font = `${piece ? 700 : 500} ${piece ? 13.5 : 12.5}px Inter, "Noto Sans KR", sans-serif`;
           ctx.lineWidth = 4; ctx.strokeStyle = C.bg; ctx.strokeText(n.label, x, y + r + 15);
           ctx.fillStyle = piece ? C[colorKey(n)] : C.text; ctx.fillText(n.label, x, y + r + 15);
-          if (n.id === gsel || n.id === hover) {
+          if (n.id === sel || n.id === hover) {
             ctx.font = '11.5px "Noto Sans KR", Inter, sans-serif'; ctx.fillStyle = C.muted;
             ctx.strokeText(n.ko, x, y + r + 29); ctx.fillText(n.ko, x, y + r + 29);
           }
@@ -519,7 +518,7 @@
     }
 
     function select(id) {
-      sel = id;
+      sel = id; topicView = null;
       if (id.startsWith('w:')) { stripWord = id; input.value = byId[id] ? byId[id].label : wordOf(id).w; }
       if (byId[id]) flyTo({ id, k: 1.7 });
       else {                                                        // hidden word: fly to the middle of its pieces
@@ -538,15 +537,16 @@
       select(id);
     }
     function inspectPiece(id) {              // clicking a piece in "dign + ity = dignity": update the side panel
-      sel = id;                              // only, no camera move and the equation on top stays as is
+      sel = id; topicView = null;            // only, no camera move and the equation on top stays as is
       renderUI();
     }
-    function inspectTopics(word) {           // clicking "= marriage": show its 관계도 groups in the side panel
-      sel = 'topic:' + word;
+    function inspectTopics(word) {           // clicking "= marriage": highlight it in the graph like a normal
+      sel = 'w:' + word;                     // selection (no camera move), but show its 관계도 groups in the panel
+      topicView = word;
       renderUI();
     }
     function clearSel() {
-      sel = null; stripWord = null; userMoved = false; input.value = '';
+      sel = null; stripWord = null; userMoved = false; topicView = null; input.value = '';
       flyTo(fitTarget()); renderUI(); updateUrl();
     }
 
@@ -572,10 +572,10 @@
       if (!sel) {
         panel.innerHTML = `<h3>탐색</h3><p class="sub">그래프의 노드를 클릭하거나 위에서 단어를 검색해 보세요.</p>` +
           `<p class="empty">색이 있는 큰 노드는 <b style="color:var(--pre)">접두사</b>, <b style="color:var(--root)">어근</b>, <b style="color:var(--suf)">접미사</b> 이고, 검정 점은 더 이상 분해되지 않는 단어입니다. 분해되는 단어(예: beverage)는 그래프에서 숨기고 조각(bever - age)을 바로 이어 보여 줍니다. 단어를 검색하면 그 조각들이 강조됩니다.</p>`;
-      } else if (sel.startsWith('topic:')) {
-        const word = sel.slice(6), wd = wordMap.get('w:' + word);
+      } else if (topicView) {
+        const wd = wordMap.get('w:' + topicView);
         const groups = ((wd && wd.topics) || []).map((id) => TOPICS.get(id)).filter(Boolean);
-        panel.innerHTML = `<h3>${word}${stars(wd && wd.importance)}</h3><p class="sub">관계도 그룹 ${groups.length}개</p>` +
+        panel.innerHTML = `<h3>${topicView}${stars(wd && wd.importance)}</h3><p class="sub">관계도 그룹 ${groups.length}개</p>` +
           (groups.length ? groups.map((t) => {
             const list = WORDS.filter((w) => w !== wd && (w.topics || []).includes(t.id))
               .sort((a, b) => (a.importance || 6) - (b.importance || 6));
