@@ -141,12 +141,13 @@
         }));
         [...byW].forEach(([id, list]) => {
           const r = wById.get(id); if (!r || (r.parts || []).length) return;   // roots = words that cannot be split (parts = [])
-          rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r), words: asWords(list) });
+          rows.r.push({ text: r.word, label: SIGN.root(r.word), meaning: posText(r), words: asWords(list), importance: r.importance });
         });
         // unsplit words that no other word uses: also root entries, shown in black after the green ones
         ws.filter((w) => !(w.parts || []).length && !byW.has(w.id))
-          .forEach((w) => rows.r.push({ text: w.word, label: w.word, meaning: posText(w), words: [], black: true }));
-        rows.r.sort((a, b) => (a.black ? 1 : 0) - (b.black ? 1 : 0) || a.text.localeCompare(b.text));
+          .forEach((w) => rows.r.push({ text: w.word, label: w.word, meaning: posText(w), words: [], black: true, importance: w.importance }));
+        const imp = (m) => m.importance || 6;                                 // null (unranked) sorts after 5
+        rows.r.sort((a, b) => (a.black ? 1 : 0) - (b.black ? 1 : 0) || imp(a) - imp(b) || a.text.localeCompare(b.text));
         stats.innerHTML = `<span class="dbs ok">DB 연결됨</span> · 접사 <b>${rows.p.length + rows.s.length}</b>개 · 어근 <b>${rows.r.length}</b>개(검정 ${rows.r.filter((m) => m.black).length}) · 단어 <b>${ws.length}</b>개`;
         render();
       } catch (e) {
