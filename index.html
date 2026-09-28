@@ -105,7 +105,6 @@
     .chip.on { background: color-mix(in srgb, var(--c) 32%, transparent); border-color: var(--c); }
     .res { margin-top: 8px; font-size: 1.05rem; }
     .res span { color: var(--muted); }
-    .res .hint { display: block; margin-top: 4px; font-size: .82rem; }
 
     /* ── 그래프 + 패널 ── */
     .stage { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 22px; }
@@ -161,12 +160,7 @@
         <input id="q" type="search" placeholder="단어 또는 뜻을 검색하세요  (예: predict, 예측)" autocomplete="off" spellcheck="false" aria-label="단어 검색" role="combobox" aria-expanded="false" aria-controls="sug">
         <ul class="suggest" id="sug" role="listbox"></ul>
       </div>
-      <div class="examples">예시
-        <button class="ex" data-q="predict">predict</button>
-        <button class="ex" data-q="unbreakable">unbreakable</button>
-        <button class="ex" data-q="transport">transport</button>
-        <button class="ex" data-q="construction">construction</button>
-      </div>
+      <div class="examples" id="examples"></div>
 
       <section class="card strip" id="strip" aria-live="polite"></section>
     </header>
@@ -488,7 +482,22 @@
 
     // ── 선택 상태와 UI ─────────────────────────────────────
     const $ = (s) => document.querySelector(s);
-    const input = $('#q'), sug = $('#sug'), strip = $('#strip'), panel = $('#panel');
+    const input = $('#q'), sug = $('#sug'), strip = $('#strip'), panel = $('#panel'), examples = $('#examples');
+
+    // ── 최근 검색 (localStorage, 이 브라우저에서만 유지) ──────
+    const RECENT_KEY = 'wa-recent', RECENT_MAX = 5;
+    const DEFAULT_EX = ['predict', 'unbreakable', 'transport', 'construction'];
+    const getRecent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } };
+    function addRecent(word) {
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify([word, ...getRecent().filter((w) => w !== word)].slice(0, RECENT_MAX))); }
+      catch {}
+      renderExamples();
+    }
+    function renderExamples() {
+      const recent = getRecent(), list = recent.length ? recent : DEFAULT_EX;
+      examples.innerHTML = (recent.length ? '최근 검색' : '예시') + list.map((w) => `<button class="ex" data-q="${w}">${w}</button>`).join('');
+    }
+    renderExamples();
 
     function select(id) {
       sel = id;
@@ -504,6 +513,10 @@
         }
       }
       renderUI();
+    }
+    function selectFromSearch(id) {          // a word chosen via the search box also joins "최근 검색"
+      if (id.startsWith('w:')) addRecent(id.slice(2));
+      select(id);
     }
     function clearSel() {
       sel = null; stripWord = null; userMoved = false; input.value = '';
@@ -522,7 +535,7 @@
         const wd = wordOf(stripWord);
         strip.innerHTML =
           `<div class="eq">${wd.ids.map((id) => partChip(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
-          `<div class="res"><span>=</span> <b>${wd.w}</b> <span>· ${wd.ko}</span><span class="hint">조각을 누르면 그래프에서 해당 노드로 이동합니다</span></div>`;
+          `<div class="res"><span>=</span> <b>${wd.w}</b> <span>· ${wd.ko}</span></div>`;
         strip.classList.add('show');
       } else strip.classList.remove('show');
 
@@ -548,7 +561,7 @@
       panel.scrollTop = 0;
     }
 
-    // 클릭 위임: 칩, 목록, 예시
+    // 클릭 위임: 칩, 목록, 예시/최근 검색
     document.addEventListener('click', (e) => {
       const t = e.target.closest('[data-id]'); if (t && !t.closest('.suggest')) { select(t.dataset.id); return; }
       const ex = e.target.closest('[data-q]'); if (ex) { select('w:' + ex.dataset.q); }
@@ -582,12 +595,12 @@
         idx = (idx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
         [...sug.children].forEach((li, i) => li.classList.toggle('act', i === idx));
       } else if (e.key === 'Enter') {
-        e.preventDefault(); if (items[idx]) { select(items[idx]); closeSug(); input.blur(); }
+        e.preventDefault(); if (items[idx]) { selectFromSearch(items[idx]); closeSug(); input.blur(); }
       } else if (e.key === 'Escape') closeSug();
     });
     sug.addEventListener('mousedown', (e) => {
       const li = e.target.closest('[data-sid]'); if (!li) return;
-      e.preventDefault(); select(li.dataset.sid); closeSug();
+      e.preventDefault(); selectFromSearch(li.dataset.sid); closeSug();
     });
     document.addEventListener('mousedown', (e) => { if (!e.target.closest('.search')) closeSug(); });
 
