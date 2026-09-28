@@ -525,7 +525,8 @@
       } else {
         const wd = wordOf(sel);
         const users = WORDS.filter((w) => w !== wd && w.ids.includes(sel));   // words built from this word
-        panel.innerHTML = `<h3>${wd.w}</h3><p class="sub">${wd.ko} · 같은 조각을 쓰는 다른 단어</p>` +
+        const hasList = users.length || wd.ids.length;                       // nothing to relate: skip the section entirely
+        panel.innerHTML = `<h3>${wd.w}</h3><p class="sub">${wd.ko}${hasList ? ' · 같은 조각을 쓰는 다른 단어' : ''}</p>` +
           (users.length ? `<div class="group"><div class="gh">이 단어를 조각으로 쓰는 단어 ${users.length}개</div>${users.map(liHTML).join('')}</div>` : '') +
           wd.ids.map((pid) => {
             const { k, t, ko } = partInfo(pid), others = WORDS.filter((w) => w !== wd && w.ids.includes(pid));
