@@ -224,8 +224,8 @@
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
     const isPiece = (n) => n.type !== 'w' || n.root;     // prefixes, suffixes and roots are drawn as "pieces"
     const colorKey = (n) => (n.root ? 'r' : n.type);
-    const addNode = (id, type, label, ko, t, x) => {
-      const n = { id, type, label, ko, t, x, y: rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false };
+    const addNode = (id, type, label, ko, t, x, y, imp) => {
+      const n = { id, type, label, ko, t, x, y: y ?? rnd() * 300, vx: 0, vy: 0, r: 5, fixed: false, imp };
       nodes.push(n); byId[id] = n; adj[id] = new Set();
     };
     function buildGraph() {
@@ -260,7 +260,13 @@
           if (used.has(id)) addNode(id, k, SIGN[k](t), ko, t, { p: -260, r: 0, s: 260 }[k] + rnd() * 80);
         });
       }
-      WORDS.forEach((wd) => { if (!wd.hidden) addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rnd() * 300); });
+      // importance (1 = most common .. 5 = rarest, null = unranked) sets the node's starting/target distance
+      // from the centre, so the graph opens with everyday words in the middle and rare ones toward the edge.
+      WORDS.forEach((wd) => {
+        if (wd.hidden) return;
+        const imp = wd.importance || 6, rad = imp * 30, ang = rnd() * 2 * Math.PI;
+        addNode('w:' + wd.w, 'w', wd.w, wd.ko, wd.w, rad * Math.cos(ang), rad * Math.sin(ang), imp);
+      });
       WORDS.forEach((wd) => { wd.ids = wd.ids.filter((id) => byId[id]); });
       const seenLink = new Set(), usedAsAtom = new Set();
       WORDS.forEach((wd) => {
@@ -331,6 +337,11 @@
         A.vx += fx; A.vy += fy; B.vx -= fx; B.vy -= fy;
       }
       for (const n of nodes) {
+        if (n.imp) {                                          // pull toward this word's importance ring
+          const rad = Math.sqrt(n.x * n.x + n.y * n.y) || 1, target = n.imp * 30;
+          const f = (target - rad) * 0.02 * a;
+          n.vx += (n.x / rad) * f; n.vy += (n.y / rad) * f;
+        }
         n.vx -= n.x * 0.012 * a; n.vy -= n.y * 0.012 * a;
         if (n.fixed) { n.vx = n.vy = 0; continue; }
         n.vx *= 0.82; n.vy *= 0.82; n.x += n.vx; n.y += n.vy;
@@ -622,7 +633,7 @@
             if (p[0] === 'm') { const m = mById.get(id); if (m) parts.push([m.type === 'prefix' ? 'p' : 's', m.text]); }
             else { const r = wById.get(id); if (r) parts.push(['w', r.word]); }
           });
-          return { w: w.word, parts, ko: koOf(w) };
+          return { w: w.word, parts, ko: koOf(w), importance: w.importance };
         });
         return { PRE: list('prefix'), ROOT: [], SUF: list('suffix'), WORDS: words };
       } catch (e) { console.warn('Supabase 로드 실패, 내장 데이터 사용:', e); return null; }
