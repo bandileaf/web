@@ -111,6 +111,8 @@
     .res { margin-top: 8px; font-size: 1.05rem; }
     .res > span { color: var(--muted); }
     .res .rko { display: block; margin-top: 4px; padding-left: 2px; font-size: .82rem; }
+    .res .reslink { cursor: pointer; border-bottom: 2px dotted color-mix(in srgb, var(--text) 35%, transparent); }
+    .res .reslink:hover { color: var(--pre); border-color: var(--pre); }
 
     /* ── 그래프 + 패널 ── */
     .stage { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 22px; }
@@ -218,6 +220,7 @@
     let KIND = { p: PRE, r: ROOT, s: SUF };
     const SIGN = { p: (t) => t + '-', r: (t) => t, s: (t) => '-' + t };
     const KIND_KO = { p: '접두사', r: '어근', s: '접미사' };
+    let TOPICS = new Map();   // 관계도: topics.id -> {id, title}. DB 연결 전에는 비어 있음
 
     // ── 그래프 데이터 ──────────────────────────────────────
     const nodes = [], byId = {}, links = [], adj = {};
@@ -537,6 +540,10 @@
       sel = id;                              // only, no camera move and the equation on top stays as is
       renderUI();
     }
+    function inspectTopics(word) {           // clicking "= marriage": show its 관계도 groups in the side panel
+      sel = 'topic:' + word;
+      renderUI();
+    }
     function clearSel() {
       sel = null; stripWord = null; userMoved = false; input.value = '';
       flyTo(fitTarget()); renderUI(); updateUrl();
@@ -556,7 +563,7 @@
         const wd = wordOf(stripWord);
         strip.innerHTML =
           `<div class="eq">${wd.ids.map((id) => eqPiece(id, id === sel)).join('<span class="plus">+</span>')}</div>` +
-          `<div class="res"><span>=</span> <b>${wd.w}${stars(wd.importance)}</b><span class="rko">${wd.ko}</span></div>`;
+          `<div class="res"><span>=</span> <b class="reslink" data-topic="${wd.w}">${wd.w}${stars(wd.importance)}</b><span class="rko">${wd.ko}</span></div>`;
         strip.classList.add('show');
       } else strip.classList.remove('show');
 
@@ -564,6 +571,16 @@
       if (!sel) {
         panel.innerHTML = `<h3>탐색</h3><p class="sub">그래프의 노드를 클릭하거나 위에서 단어를 검색해 보세요.</p>` +
           `<p class="empty">색이 있는 큰 노드는 <b style="color:var(--pre)">접두사</b>, <b style="color:var(--root)">어근</b>, <b style="color:var(--suf)">접미사</b> 이고, 검정 점은 더 이상 분해되지 않는 단어입니다. 분해되는 단어(예: beverage)는 그래프에서 숨기고 조각(bever - age)을 바로 이어 보여 줍니다. 단어를 검색하면 그 조각들이 강조됩니다.</p>`;
+      } else if (sel.startsWith('topic:')) {
+        const word = sel.slice(6), wd = wordMap.get('w:' + word);
+        const groups = ((wd && wd.topics) || []).map((id) => TOPICS.get(id)).filter(Boolean);
+        panel.innerHTML = `<h3>${word}${stars(wd && wd.importance)}</h3><p class="sub">관계도 그룹 ${groups.length}개</p>` +
+          (groups.length ? groups.map((t) => {
+            const list = WORDS.filter((w) => w !== wd && (w.topics || []).includes(t.id))
+              .sort((a, b) => (a.importance || 6) - (b.importance || 6));
+            return `<div class="group"><div class="gh">${t.title} ${list.length}개</div>` +
+              (list.length ? list.map(liHTML).join('') : `<p class="empty">같은 그룹의 다른 단어가 없습니다.</p>`) + `</div>`;
+          }).join('') : `<p class="empty">이 단어는 아직 관계도 그룹에 속하지 않았습니다.</p>`);
       } else if (sel[0] !== 'w') {
         const { k, t, ko } = partInfo(sel), list = WORDS.filter((w) => w.ids.includes(sel));
         panel.innerHTML = `<h3><span class="chip ${k}">${SIGN[k](t)}</span></h3><p class="sub">${KIND_KO[k]} · ${ko} · 연결된 단어 ${list.length}개</p>` + list.map(liHTML).join('');
@@ -584,8 +601,10 @@
 
     // dign + ity = dignity 의 조각을 누르면 그래프 이동 없이 보조창(패널)만 갱신
     strip.addEventListener('click', (e) => {
-      const t = e.target.closest('.eq [data-id]'); if (!t) return;
-      e.stopPropagation(); inspectPiece(t.dataset.id);
+      const p = e.target.closest('.eq [data-id]');
+      if (p) { e.stopPropagation(); inspectPiece(p.dataset.id); return; }
+      const r = e.target.closest('.res [data-topic]');
+      if (r) { e.stopPropagation(); inspectTopics(r.dataset.topic); }
     });
     // 클릭 위임: 칩, 목록, 예시/최근 검색
     document.addEventListener('click', (e) => {
@@ -654,9 +673,10 @@
     async function loadFromSupabase() {
       const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
       try {
-        const [ms, ws] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal)]);
+        const [ms, ws, ts] = await Promise.all([sbGet('morphemes', 'id', ctl.signal), sbGet('words', 'id', ctl.signal), sbGet('topics', 'id', ctl.signal)]);
         if (!ws.length || !ms.length) return null;
         const mById = new Map(ms.map((m) => [m.id, m]));
+        const topicsMap = new Map(ts.map((t) => [t.id, t]));
         // A word's meaning per part of speech ("n. 서비스, v. 제공하다") when the DB has it.
         const posText = (w) => [['noun', 'n.'], ['verb', 'v.'], ['adj', 'adj.'], ['adv', 'adv.'], ['prep', 'prep.'], ['conj', 'conj.']]
           .filter(([k]) => w[k]).map(([k, ab]) => ab + ' ' + w[k]).join(', ');
@@ -672,9 +692,11 @@
             if (p[0] === 'm') { const m = mById.get(id); if (m) parts.push([m.type === 'prefix' ? 'p' : 's', m.text]); }
             else { const r = wById.get(id); if (r) parts.push(['w', r.word]); }
           });
-          return { w: w.word, parts, ko: koOf(w), importance: w.importance };
+          // words.topics: 'id3' = topics.id 3, a 관계도 group this word belongs to (주제 무관인 것도 많아 보통 비어 있음)
+          const topics = (w.topics || []).map((t) => Number(t.slice(2))).filter((id) => topicsMap.has(id));
+          return { w: w.word, parts, ko: koOf(w), importance: w.importance, topics };
         });
-        return { PRE: list('prefix'), ROOT: [], SUF: list('suffix'), WORDS: words };
+        return { PRE: list('prefix'), ROOT: [], SUF: list('suffix'), WORDS: words, TOPICS: topicsMap };
       } catch (e) { console.warn('Supabase 로드 실패, 내장 데이터 사용:', e); return null; }
       finally { clearTimeout(timer); }
     }
@@ -684,7 +706,7 @@
     buildGraph(); renderUI(); setStatus(false, '연결 중…'); restoreFromUrl();
     loadFromSupabase().then((d) => {
       if (!d) { setStatus(false, '내장 데이터'); return; }
-      ({ PRE, ROOT, SUF, WORDS } = d);
+      ({ PRE, ROOT, SUF, WORDS, TOPICS } = d);
       sel = null; stripWord = null; hover = null; input.value = '';
       buildGraph(); Object.assign(cam, fitTarget()); anim = null; renderUI();
       setStatus(true, 'DB 연결됨 · 단어 ' + WORDS.length + '개');
