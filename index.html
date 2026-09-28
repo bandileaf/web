@@ -529,6 +529,10 @@
       if (id.startsWith('w:')) addRecent(id.slice(2));
       select(id);
     }
+    function inspectPiece(id) {              // clicking a piece in "dign + ity = dignity": update the side panel
+      sel = id;                              // only, no camera move and the equation on top stays as is
+      renderUI();
+    }
     function clearSel() {
       sel = null; stripWord = null; userMoved = false; input.value = '';
       flyTo(fitTarget()); renderUI(); updateUrl();
@@ -573,6 +577,11 @@
       panel.scrollTop = 0;
     }
 
+    // dign + ity = dignity 의 조각을 누르면 그래프 이동 없이 보조창(패널)만 갱신
+    strip.addEventListener('click', (e) => {
+      const t = e.target.closest('.eq [data-id]'); if (!t) return;
+      e.stopPropagation(); inspectPiece(t.dataset.id);
+    });
     // 클릭 위임: 칩, 목록, 예시/최근 검색
     document.addEventListener('click', (e) => {
       const t = e.target.closest('[data-id]'); if (t && !t.closest('.suggest')) { select(t.dataset.id); return; }
