@@ -391,8 +391,9 @@
     function draw(now) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-      const focusId = sel || hover;
-      const hw = sel && !byId[sel] ? wordOf(sel) : null;             // a hidden (split) word is selected: light up its pieces
+      const gsel = sel && !sel.startsWith('topic:') ? sel : null;    // 'topic:marriage' isn't a graph node: don't touch the graph
+      const focusId = gsel || hover;
+      const hw = gsel && !byId[gsel] ? wordOf(gsel) : null;          // a hidden (split) word is selected: light up its pieces
       const F = hw ? new Set(hw.ids) : focusId ? new Set([focusId, ...adj[focusId]]) : null;
 
       ctx.lineCap = 'round';
@@ -411,7 +412,7 @@
         ctx.globalAlpha = lit ? 1 : 0.13;
         ctx.fillStyle = C[colorKey(n)];
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
-        if (n.id === sel) {
+        if (n.id === gsel) {
           ctx.globalAlpha = 0.9; ctx.strokeStyle = C[colorKey(n)]; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(x, y, r + 6 + Math.sin(now / 260) * 2.2, 0, 6.2832); ctx.stroke();
         }
@@ -421,7 +422,7 @@
           ctx.font = `${piece ? 700 : 500} ${piece ? 13.5 : 12.5}px Inter, "Noto Sans KR", sans-serif`;
           ctx.lineWidth = 4; ctx.strokeStyle = C.bg; ctx.strokeText(n.label, x, y + r + 15);
           ctx.fillStyle = piece ? C[colorKey(n)] : C.text; ctx.fillText(n.label, x, y + r + 15);
-          if (n.id === sel || n.id === hover) {
+          if (n.id === gsel || n.id === hover) {
             ctx.font = '11.5px "Noto Sans KR", Inter, sans-serif'; ctx.fillStyle = C.muted;
             ctx.strokeText(n.ko, x, y + r + 29); ctx.fillText(n.ko, x, y + r + 29);
           }
