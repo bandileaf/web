@@ -93,10 +93,13 @@
     .strip { max-width: 640px; margin: 18px auto 0; padding: 18px 20px; display: none; }
     .strip.show { display: block; animation: rise .35s ease; }
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    .eq { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 10px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
-    .eq .plus { color: var(--muted); font-weight: 300; }
-    .eq .pc { display: inline-flex; align-items: baseline; gap: 6px; }
-    .eq .pm { font-size: .5em; font-weight: 400; font-style: normal; color: var(--muted); letter-spacing: normal; }
+    .eq { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: 14px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
+    .eq .plus { color: var(--muted); font-weight: 300; margin-top: .15em; }
+    .eq .pc { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .eq .pm {
+      font-size: .42em; font-weight: 400; font-style: normal; color: var(--muted); letter-spacing: normal;
+      white-space: nowrap; padding-top: 4px; border-top: 1px solid var(--border);
+    }
     .chip {
       padding: 2px 16px 4px; border-radius: 14px; color: var(--c); font-weight: 700; font-size: inherit;
       background: color-mix(in srgb, var(--c) 14%, transparent);
@@ -543,10 +546,10 @@
     const liHTML = (wd, i = 0) =>
       `<button class="li w" data-id="w:${wd.w}" style="animation-delay:${i * 40}ms"><b>${wd.w}</b><span class="dec">${decHTML(wd)}</span><em>${wd.ko}</em></button>`;
     const partChip = (id, on) => { const { t } = partInfo(id); return `<button class="chip ${kindOf(id)}${on ? ' on' : ''}" data-id="${id}" type="button">${t}</button>`; };
-    const eqPiece = (id, on) => `<span class="pc">${partChip(id, on)}<i class="pm">(${partInfo(id).ko})</i></span>`;
+    const eqPiece = (id, on) => `<span class="pc">${partChip(id, on)}<i class="pm">${partInfo(id).ko}</i></span>`;
 
     function renderUI() {
-      // 검색 결과 스트립: marry (v. 결혼하다) + age (행위 결과) = marriage / n. 결혼
+      // 검색 결과 스트립: 조각마다 "person / n. 사람" 처럼 아래에 뜻을 붙여 가로 폭을 줄임 (personality 같은 긴 단어도 한 줄에)
       if (stripWord) {
         const wd = wordOf(stripWord);
         strip.innerHTML =
