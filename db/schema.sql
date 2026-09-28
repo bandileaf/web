@@ -29,7 +29,8 @@ create table if not exists words (
   --   compassion = {m<con>,w<passion>}    benefit = {}
   parts  text[] not null default '{}',
   forms  text[] not null default '{}',        -- actual spelling of each part, same order as parts ({com,passion})
-  etym_checked_at timestamptz                 -- when the etymology was verified (null = not yet)
+  etym_checked_at timestamptz,                -- when the etymology was verified (null = not yet)
+  importance smallint check (importance between 1 and 5)  -- daily-use rank from Oxford 5000 CEFR (1=A1 common .. 5=C1 rare, null = not in the list, e.g. a bound root)
 );
 
 create index if not exists words_parts_gin on words using gin (parts);   -- which words use w7: parts=cs.{w7}
@@ -46,3 +47,4 @@ create policy "public read" on words     for select to anon, authenticated using
 -- Bring a database created with the earlier schema up to this form (no-ops on a fresh one).
 alter table morphemes drop constraint if exists morphemes_type_check;
 alter table morphemes add  constraint morphemes_type_check check (type in ('prefix', 'suffix'));
+alter table words add column if not exists importance smallint check (importance between 1 and 5);
